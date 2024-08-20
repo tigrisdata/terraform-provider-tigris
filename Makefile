@@ -21,6 +21,7 @@ terraform-provider-lint: tools
 	 -R001=false \
 	 -R003=false \
 	 -R012=false \
+	 -R018=false \
 	 -S006=false \
 	 -S014=false \
 	 -S020=false \

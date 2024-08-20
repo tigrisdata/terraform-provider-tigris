@@ -19,6 +19,8 @@ import (
 	"github.com/aws/aws-sdk-go-v2/credentials"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 	s3types "github.com/aws/aws-sdk-go-v2/service/s3/types"
+	shttp "github.com/aws/smithy-go/transport/http"
+	"github.com/tigrisdata/terraform-provider-tigris/internal/names"
 	"github.com/tigrisdata/terraform-provider-tigris/internal/types"
 )
 
@@ -78,12 +80,10 @@ func (c *Client) CreateBucket(ctx context.Context, input *types.BucketRequest) e
 
 	_, err := c.s3Client.CreateBucket(ctx, &s3.CreateBucketInput{
 		Bucket: aws.String(input.Bucket),
+		ACL:    s3types.BucketCannedACL(input.ACL),
 	})
-	if err != nil {
-		return err
-	}
 
-	return c.UpdateBucket(ctx, input)
+	return err
 }
 
 func (c *Client) UpdateBucket(ctx context.Context, input *types.BucketRequest) error {
@@ -97,33 +97,30 @@ func (c *Client) UpdateBucket(ctx context.Context, input *types.BucketRequest) e
 	}
 	body, err := json.Marshal(upReq)
 	if err != nil {
-		return fmt.Errorf("failed to marshal update request: %v", err)
+		return fmt.Errorf("failed to marshal update request: %w", err)
 	}
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodPatch, c.bucketURL(input.Bucket, nil), bytes.NewReader(body))
 	if err != nil {
-		return fmt.Errorf("failed to create update request: %v", err)
+		return fmt.Errorf("failed to create update request: %w", err)
 	}
 
 	// ACL updates are done through the header
 	req.Header.Set("X-Amz-Acl", string(input.ACL))
 
+	//nolint:contextcheck
 	resp, err := c.doRequestWithRetry(req)
 	if err != nil {
-		return fmt.Errorf("failed to send update request: %v", err)
+		return fmt.Errorf("failed to send update request: %w", err)
 	}
 	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK {
-		return fmt.Errorf("request failed with code: %d", resp.StatusCode)
-	}
 
 	var upResp types.BucketUpdateResponse
 	err = json.NewDecoder(resp.Body).Decode(&upResp)
 	if err != nil {
-		return fmt.Errorf("failed to read update response: %v", err)
+		return fmt.Errorf("request failed with code: %d", resp.StatusCode)
 	}
-	if upResp.Update != "success" && upResp.Update != "not modified" {
+	if resp.StatusCode != http.StatusOK {
 		return fmt.Errorf("update failed with error: %s", upResp.ErrorMessage)
 	}
 
@@ -133,7 +130,7 @@ func (c *Client) UpdateBucket(ctx context.Context, input *types.BucketRequest) e
 func (c *Client) HeadBucket(ctx context.Context, bucketName string) (bool, error) {
 	_, err := c.s3Client.HeadBucket(ctx, &s3.HeadBucketInput{
 		Bucket: aws.String(bucketName),
-	})
+	}, withHeader(names.HeaderAmzIdentityId, c.credentials.AccessKeyID))
 
 	exists := true
 	if err != nil {
@@ -161,12 +158,13 @@ func (c *Client) GetBucketMetadata(ctx context.Context, bucketName string) (*typ
 	}
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, c.bucketURL(bucketName, params), nil)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create request: %v", err)
+		return nil, fmt.Errorf("failed to create request: %w", err)
 	}
 
+	//nolint:contextcheck
 	resp, err := c.doRequestWithRetry(req)
 	if err != nil {
-		return nil, fmt.Errorf("failed to send request: %v", err)
+		return nil, fmt.Errorf("failed to send request: %w", err)
 	}
 	defer resp.Body.Close()
 
@@ -178,10 +176,42 @@ func (c *Client) GetBucketMetadata(ctx context.Context, bucketName string) (*typ
 	var metadata types.BucketMetadata
 	err = json.NewDecoder(resp.Body).Decode(&metadata)
 	if err != nil {
-		return nil, fmt.Errorf("failed to read bucket metadata: %v", err)
+		return nil, fmt.Errorf("failed to read bucket metadata: %w", err)
 	}
 
 	return &metadata, nil
+}
+
+func (c *Client) FindBucketWithRetry(ctx context.Context, bucketName string) (bool, error) {
+	maxRetries := 5
+	backoffDelay := 3 * time.Second
+	maxBackoffDelay := 60 * time.Second
+
+	var exists bool
+
+	for i := 0; i < maxRetries; i++ {
+		exists, err := c.HeadBucket(ctx, bucketName)
+		if err != nil {
+			return false, err
+		}
+
+		// Retry the request if the bucket does not exist
+		if !exists {
+			// Exponential backoff before retrying
+			time.Sleep(backoffDelay)
+			backoffDelay *= 2 // Double the delay for each retry
+			if backoffDelay > maxBackoffDelay {
+				backoffDelay = maxBackoffDelay
+			}
+
+			continue
+		}
+
+		// Break out of the loop if the request was successful
+		break
+	}
+
+	return exists, nil
 }
 
 func (c *Client) doRequestWithRetry(req *http.Request) (*http.Response, error) {
@@ -196,12 +226,12 @@ func (c *Client) doRequestWithRetry(req *http.Request) (*http.Response, error) {
 		// Clone the request to avoid issues with mutated request objects
 		clonedReq, err := cloneRequest(req)
 		if err != nil {
-			return nil, fmt.Errorf("failed to clone request: %v", err)
+			return nil, fmt.Errorf("failed to clone request: %w", err)
 		}
 
 		resp, err = c.doSignedRequest(clonedReq)
 		if err != nil {
-			return nil, fmt.Errorf("failed to send request: %v", err)
+			return nil, fmt.Errorf("failed to send request: %w", err)
 		}
 
 		// Check if the response status code indicates a server-side error (5xx)
@@ -229,7 +259,7 @@ func (c *Client) doSignedRequest(req *http.Request) (*http.Response, error) {
 	// Sign the request
 	err := c.signRequest(req)
 	if err != nil {
-		return nil, fmt.Errorf("failed to sign request: %v", err)
+		return nil, fmt.Errorf("failed to sign request: %w", err)
 	}
 
 	// Send the signed request using the wrapped http.Client
@@ -256,27 +286,36 @@ func (c *Client) signRequest(req *http.Request) error {
 	now := time.Now()
 
 	// Set default headers
-	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("Accept", "application/json")
+	req.Header.Set(names.HeaderContentType, "application/json")
+	req.Header.Set(names.HeaderAccept, "application/json")
 
 	// Buffer the request body if it exists
 	var bodyBytes []byte
+	var payloadHash string
 	if req.Body != nil {
 		var err error
 		bodyBytes, err = io.ReadAll(req.Body)
 		if err != nil {
-			return fmt.Errorf("failed to read request body: %v", err)
+			return fmt.Errorf("failed to read request body: %w", err)
 		}
 		req.Body = io.NopCloser(bytes.NewReader(bodyBytes))
+
+		// Calculate the payload hash
+		hash := sha256.New()
+		hash.Write(bodyBytes)
+		payloadHash = hex.EncodeToString(hash.Sum(nil))
+	} else {
+		// If there's no body, the hash should be the SHA-256 of an empty string
+		payloadHash = hex.EncodeToString(sha256.New().Sum(nil))
 	}
 
-	// Determine the payload hash (empty string if no payload)
-	payloadHash := hex.EncodeToString(sha256.New().Sum(bodyBytes))
+	// set the content sha256 header
+	req.Header.Set(names.HeaderAmzContentSha, payloadHash)
 
 	// Sign the request using the signer
 	err := c.signer.SignHTTP(context.TODO(), c.credentials, req, payloadHash, "s3", DefaultRegion, now)
 	if err != nil {
-		return fmt.Errorf("failed to sign request: %v", err)
+		return fmt.Errorf("failed to sign request: %w", err)
 	}
 
 	return nil
@@ -291,7 +330,7 @@ func cloneRequest(req *http.Request) (*http.Request, error) {
 		var buf bytes.Buffer
 		_, err := buf.ReadFrom(req.Body)
 		if err != nil {
-			return nil, fmt.Errorf("failed to read request body: %v", err)
+			return nil, fmt.Errorf("failed to read request body: %w", err)
 		}
 
 		// Restore the original body to be read again
@@ -309,4 +348,10 @@ func validateBucketRequest(input *types.BucketRequest) error {
 	}
 
 	return nil
+}
+
+func withHeader(key, value string) func(*s3.Options) {
+	return func(options *s3.Options) {
+		options.APIOptions = append(options.APIOptions, shttp.AddHeaderValue(key, value))
+	}
 }

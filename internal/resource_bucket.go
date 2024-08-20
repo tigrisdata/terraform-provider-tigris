@@ -33,7 +33,7 @@ func resourceTigrisBucket() *schema.Resource {
 		},
 
 		Schema: map[string]*schema.Schema{
-			names.AttrBucketName: {
+			names.AttrBucket: {
 				Type:        schema.TypeString,
 				Required:    true,
 				Description: "The name of the Tigris bucket.",
@@ -45,12 +45,6 @@ func resourceTigrisBucket() *schema.Resource {
 				Description:  "The canned ACL to apply to the bucket.",
 				ValidateFunc: validation.StringInSlice(bucketCannedACL_Values(), false),
 			},
-			names.AttrDomainName: {
-				Type:        schema.TypeString,
-				Optional:    true,
-				Computed:    true,
-				Description: "The custom domain name to apply to the bucket.",
-			},
 		},
 	}
 }
@@ -58,24 +52,20 @@ func resourceTigrisBucket() *schema.Resource {
 func resourceBucketCreate(ctx context.Context, d *schema.ResourceData, meta interface{}) diag.Diagnostics {
 	svc := meta.(*Client)
 
-	bucketName := d.Get(names.AttrBucketName).(string)
-	website_domain := d.Get(names.AttrDomainName).(string)
-
-	tflog.Info(ctx, "Creating bucket", map[string]interface{}{
-		"bucket_name": bucketName,
-	})
+	bucketName := d.Get(names.AttrBucket).(string)
 
 	input := &types.BucketRequest{
 		Bucket: bucketName,
-		Website: &types.BucketWebsite{
-			DomainName: website_domain,
-		},
 	}
 	if v, ok := d.GetOk(names.AttrAcl); ok {
 		input.ACL = types.BucketCannedACL(v.(string))
 	} else {
 		input.ACL = types.BucketCannedACLPrivate
 	}
+
+	tflog.Info(ctx, "Creating bucket", map[string]interface{}{
+		"bucket_name": bucketName,
+	})
 
 	err := svc.CreateBucket(ctx, input)
 	if err != nil {
@@ -87,6 +77,7 @@ func resourceBucketCreate(ctx context.Context, d *schema.ResourceData, meta inte
 	})
 
 	d.SetId(bucketName)
+
 	return resourceBucketRead(ctx, d, meta)
 }
 
@@ -101,6 +92,10 @@ func resourceBucketRead(ctx context.Context, d *schema.ResourceData, meta interf
 
 	exists, err := svc.HeadBucket(ctx, bucketName)
 	if !exists {
+		tflog.Warn(ctx, "Bucket not found, removing from state", map[string]interface{}{
+			"bucket_name": bucketName,
+		})
+
 		d.SetId("")
 		return nil
 	}
@@ -108,7 +103,7 @@ func resourceBucketRead(ctx context.Context, d *schema.ResourceData, meta interf
 		return diag.FromErr(fmt.Errorf("unable to read bucket, %w", err))
 	}
 
-	d.Set(names.AttrBucketName, bucketName)
+	d.Set(names.AttrBucket, bucketName)
 
 	tflog.Info(ctx, "Fetching bucket metadata", map[string]interface{}{
 		"bucket_name": bucketName,
@@ -121,10 +116,6 @@ func resourceBucketRead(ctx context.Context, d *schema.ResourceData, meta interf
 
 	acl := metadata.GetBucketCannedACL()
 	d.Set(names.AttrAcl, string(acl))
-
-	if metadata.Website != nil && metadata.Website.DomainName != "" {
-		d.Set(names.AttrDomainName, metadata.Website.DomainName)
-	}
 
 	tflog.Info(ctx, "Fetched bucket metadata", map[string]interface{}{
 		"metadata": metadata,
@@ -150,7 +141,7 @@ func resourceBucketUpdate(ctx context.Context, d *schema.ResourceData, meta inte
 	//
 	// Bucket ACL.
 	//
-	if d.HasChange(names.AttrAcl) && !d.IsNewResource() {
+	if d.HasChange(names.AttrAcl) {
 		acl := types.BucketCannedACL(d.Get(names.AttrAcl).(string))
 		if acl == "" {
 			acl = types.BucketCannedACLPrivate
@@ -158,21 +149,6 @@ func resourceBucketUpdate(ctx context.Context, d *schema.ResourceData, meta inte
 		input.ACL = acl
 
 		tflog.Info(ctx, "Will update bucket ACL", map[string]interface{}{
-			"bucket_name": bucketName,
-		})
-
-		needsUpdate = true
-	}
-
-	//
-	// Bucket Domain Name.
-	//
-	if d.HasChange(names.AttrDomainName) {
-		input.Website = &types.BucketWebsite{
-			DomainName: d.Get(names.AttrDomainName).(string),
-		}
-
-		tflog.Info(ctx, "Will update bucket domain name", map[string]interface{}{
 			"bucket_name": bucketName,
 		})
 

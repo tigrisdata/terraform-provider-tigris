@@ -4,7 +4,7 @@ import "time"
 
 type BucketCannedACL string
 
-// Enum values for BucketCannedACL
+// Enum values for BucketCannedACL.
 const (
 	BucketCannedACLPrivate    BucketCannedACL = "private"
 	BucketCannedACLPublicRead BucketCannedACL = "public-read"

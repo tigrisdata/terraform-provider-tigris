@@ -21,7 +21,8 @@ provider "tigris" {
 }
 
 resource "tigris_bucket" "example" {
-  bucket_name = "my-custom-bucket"
+  bucket = "my-custom-bucket"
+  acl    = "private"
 }
 ```
 
@@ -51,6 +52,7 @@ The provider can be configured with the following parameters:
 ### Resource Configuration
 
 - bucket_name: (Required) The name of the Tigris bucket.
+- acl: (Optional) The access control list for the bucket. Defaults to "private". Possible values are "private", and "public-read".
 
 ## Resources
 
