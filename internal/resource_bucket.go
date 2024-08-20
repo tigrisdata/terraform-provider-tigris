@@ -2,88 +2,214 @@ package internal
 
 import (
 	"context"
-	"errors"
 	"fmt"
+	"time"
 
-	"github.com/aws/aws-sdk-go-v2/aws"
-	"github.com/aws/aws-sdk-go-v2/service/s3"
-	"github.com/aws/aws-sdk-go-v2/service/s3/types"
+	"github.com/hashicorp/terraform-plugin-log/tflog"
+	"github.com/hashicorp/terraform-plugin-sdk/v2/diag"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
+	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/validation"
+	"github.com/tigrisdata/terraform-provider-tigris/internal/names"
+	"github.com/tigrisdata/terraform-provider-tigris/internal/types"
 )
 
 func resourceTigrisBucket() *schema.Resource {
 	return &schema.Resource{
-		Description: "Provides a Tigris bucket resource. This can be used to create and manage Tigris buckets.",
-		Create:      resourceS3BucketCreate,
-		Read:        resourceS3BucketRead,
-		Update:      resourceS3BucketUpdate,
-		Delete:      resourceS3BucketDelete,
+		Description:          "Provides a Tigris bucket resource. This can be used to create and manage Tigris buckets.",
+		CreateWithoutTimeout: resourceBucketCreate,
+		ReadWithoutTimeout:   resourceBucketRead,
+		UpdateWithoutTimeout: resourceBucketUpdate,
+		DeleteWithoutTimeout: resourceBucketDelete,
+
+		Timeouts: &schema.ResourceTimeout{
+			Create: schema.DefaultTimeout(20 * time.Minute),
+			Read:   schema.DefaultTimeout(20 * time.Minute),
+			Update: schema.DefaultTimeout(20 * time.Minute),
+			Delete: schema.DefaultTimeout(60 * time.Minute),
+		},
+
 		Importer: &schema.ResourceImporter{
 			StateContext: schema.ImportStatePassthroughContext,
 		},
+
 		Schema: map[string]*schema.Schema{
-			"bucket_name": {
+			names.AttrBucketName: {
 				Type:        schema.TypeString,
 				Required:    true,
 				Description: "The name of the Tigris bucket.",
+			},
+			names.AttrAcl: {
+				Type:         schema.TypeString,
+				Optional:     true,
+				Computed:     true,
+				Description:  "The canned ACL to apply to the bucket.",
+				ValidateFunc: validation.StringInSlice(bucketCannedACL_Values(), false),
+			},
+			names.AttrDomainName: {
+				Type:        schema.TypeString,
+				Optional:    true,
+				Computed:    true,
+				Description: "The custom domain name to apply to the bucket.",
 			},
 		},
 	}
 }
 
-func resourceS3BucketCreate(d *schema.ResourceData, meta interface{}) error {
-	svc := meta.(*s3.Client)
+func resourceBucketCreate(ctx context.Context, d *schema.ResourceData, meta interface{}) diag.Diagnostics {
+	svc := meta.(*Client)
 
-	bucketName := d.Get("bucket_name").(string)
+	bucketName := d.Get(names.AttrBucketName).(string)
+	website_domain := d.Get(names.AttrDomainName).(string)
 
-	_, err := svc.CreateBucket(context.TODO(), &s3.CreateBucketInput{
-		Bucket: aws.String(bucketName),
+	tflog.Info(ctx, "Creating bucket", map[string]interface{}{
+		"bucket_name": bucketName,
 	})
-	if err != nil {
-		return fmt.Errorf("unable to create bucket, %w", err)
+
+	input := &types.BucketRequest{
+		Bucket: bucketName,
+		Website: &types.BucketWebsite{
+			DomainName: website_domain,
+		},
+	}
+	if v, ok := d.GetOk(names.AttrAcl); ok {
+		input.ACL = types.BucketCannedACL(v.(string))
+	} else {
+		input.ACL = types.BucketCannedACLPrivate
 	}
 
+	err := svc.CreateBucket(ctx, input)
+	if err != nil {
+		return diag.FromErr(fmt.Errorf("unable to create bucket, %w", err))
+	}
+
+	tflog.Info(ctx, "Bucket created successfully", map[string]interface{}{
+		"bucket_name": bucketName,
+	})
+
 	d.SetId(bucketName)
-	return resourceS3BucketRead(d, meta)
+	return resourceBucketRead(ctx, d, meta)
 }
 
-func resourceS3BucketRead(d *schema.ResourceData, meta interface{}) error {
-	svc := meta.(*s3.Client)
+func resourceBucketRead(ctx context.Context, d *schema.ResourceData, meta interface{}) diag.Diagnostics {
+	svc := meta.(*Client)
 
 	bucketName := d.Id()
 
-	_, err := svc.HeadBucket(context.TODO(), &s3.HeadBucketInput{
-		Bucket: aws.String(bucketName),
+	tflog.Info(ctx, "Checking bucket existence", map[string]interface{}{
+		"bucket_name": bucketName,
 	})
-	if err != nil {
-		var notFoundErr *types.NotFound
-		if ok := errors.As(err, &notFoundErr); ok {
-			d.SetId("")
-			return nil
-		}
-		return fmt.Errorf("unable to read bucket, %w", err)
+
+	exists, err := svc.HeadBucket(ctx, bucketName)
+	if !exists {
+		d.SetId("")
+		return nil
 	}
+	if err != nil {
+		return diag.FromErr(fmt.Errorf("unable to read bucket, %w", err))
+	}
+
+	d.Set(names.AttrBucketName, bucketName)
+
+	tflog.Info(ctx, "Fetching bucket metadata", map[string]interface{}{
+		"bucket_name": bucketName,
+	})
+
+	metadata, err := svc.GetBucketMetadata(ctx, bucketName)
+	if err != nil {
+		return diag.FromErr(fmt.Errorf("unable to read bucket metadata, %w", err))
+	}
+
+	acl := metadata.GetBucketCannedACL()
+	d.Set(names.AttrAcl, string(acl))
+
+	if metadata.Website != nil && metadata.Website.DomainName != "" {
+		d.Set(names.AttrDomainName, metadata.Website.DomainName)
+	}
+
+	tflog.Info(ctx, "Fetched bucket metadata", map[string]interface{}{
+		"metadata": metadata,
+	})
 
 	return nil
 }
 
-func resourceS3BucketUpdate(d *schema.ResourceData, meta interface{}) error {
-	// Since S3 buckets have limited update capabilities, this might be a no-op
-	return resourceS3BucketRead(d, meta)
-}
-
-func resourceS3BucketDelete(d *schema.ResourceData, meta interface{}) error {
-	svc := meta.(*s3.Client)
+func resourceBucketUpdate(ctx context.Context, d *schema.ResourceData, meta interface{}) diag.Diagnostics {
+	svc := meta.(*Client)
 
 	bucketName := d.Id()
 
-	_, err := svc.DeleteBucket(context.TODO(), &s3.DeleteBucketInput{
-		Bucket: aws.String(bucketName),
+	input := &types.BucketRequest{
+		Bucket: bucketName,
+	}
+	needsUpdate := false
+
+	tflog.Info(ctx, "Updating bucket", map[string]interface{}{
+		"bucket_name": bucketName,
 	})
+
+	//
+	// Bucket ACL.
+	//
+	if d.HasChange(names.AttrAcl) && !d.IsNewResource() {
+		acl := types.BucketCannedACL(d.Get(names.AttrAcl).(string))
+		if acl == "" {
+			acl = types.BucketCannedACLPrivate
+		}
+		input.ACL = acl
+
+		tflog.Info(ctx, "Will update bucket ACL", map[string]interface{}{
+			"bucket_name": bucketName,
+		})
+
+		needsUpdate = true
+	}
+
+	//
+	// Bucket Domain Name.
+	//
+	if d.HasChange(names.AttrDomainName) {
+		input.Website = &types.BucketWebsite{
+			DomainName: d.Get(names.AttrDomainName).(string),
+		}
+
+		tflog.Info(ctx, "Will update bucket domain name", map[string]interface{}{
+			"bucket_name": bucketName,
+		})
+
+		needsUpdate = true
+	}
+
+	if needsUpdate {
+		err := svc.UpdateBucket(ctx, input)
+		if err != nil {
+			return diag.FromErr(fmt.Errorf("unable to update bucket, %w", err))
+		}
+	}
+
+	return resourceBucketRead(ctx, d, meta)
+}
+
+func resourceBucketDelete(ctx context.Context, d *schema.ResourceData, meta interface{}) diag.Diagnostics {
+	svc := meta.(*Client)
+
+	bucketName := d.Id()
+
+	err := svc.DeleteBucket(ctx, bucketName)
 	if err != nil {
-		return fmt.Errorf("unable to delete bucket, %w", err)
+		return diag.FromErr(fmt.Errorf("unable to delete bucket, %w", err))
 	}
 
 	d.SetId("")
 	return nil
+}
+
+func bucketCannedACL_Values() []string {
+	var acl types.BucketCannedACL
+
+	values := []string{}
+	for _, value := range acl.Values() {
+		values = append(values, string(value))
+	}
+
+	return values
 }
