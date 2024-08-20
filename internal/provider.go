@@ -7,14 +7,6 @@ import (
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
 )
 
-const (
-	// DefaultEndpoint is the default endpoint for Tigris object storage service.
-	DefaultEndpoint = "https://fly.storage.tigris.dev"
-
-	// DefaultRegion is the default region for Tigris object storage service.
-	DefaultRegion = "auto"
-)
-
 func Provider() *schema.Provider {
 	return &schema.Provider{
 		Schema: map[string]*schema.Schema{
@@ -50,7 +42,7 @@ func providerConfigure(d *schema.ResourceData) (interface{}, error) {
 	secretKey := d.Get("secret_key").(string)
 	endpoint := d.Get("endpoint").(string)
 
-	svc, err := NewClient(endpoint, DefaultRegion, accessKey, secretKey)
+	svc, err := NewClient(endpoint, accessKey, secretKey)
 	if err != nil {
 		return nil, fmt.Errorf("unable to load SDK config, %w", err)
 	}

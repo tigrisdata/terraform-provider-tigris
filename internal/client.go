@@ -22,6 +22,14 @@ import (
 	"github.com/tigrisdata/terraform-provider-tigris/internal/types"
 )
 
+const (
+	// DefaultEndpoint is the default endpoint for Tigris object storage service.
+	DefaultEndpoint = "https://fly.storage.tigris.dev"
+
+	// DefaultRegion is the default region for Tigris object storage service.
+	DefaultRegion = "auto"
+)
+
 type Client struct {
 	cfg         aws.Config
 	signer      *v4.Signer
@@ -31,10 +39,10 @@ type Client struct {
 	s3Client    *s3.Client
 }
 
-func NewClient(endpoint, region, accessKeyID, secretAccessKey string) (*Client, error) {
+func NewClient(endpoint, accessKeyID, secretAccessKey string) (*Client, error) {
 	// Load AWS configuration
 	cfg, err := config.LoadDefaultConfig(context.TODO(),
-		config.WithRegion(region),
+		config.WithRegion(DefaultRegion),
 		config.WithCredentialsProvider(credentials.NewStaticCredentialsProvider(accessKeyID, secretAccessKey, "")),
 	)
 	if err != nil {
@@ -47,7 +55,7 @@ func NewClient(endpoint, region, accessKeyID, secretAccessKey string) (*Client, 
 	// Create S3 service client
 	svc := s3.NewFromConfig(cfg, func(o *s3.Options) {
 		o.BaseEndpoint = aws.String(endpoint)
-		o.Region = region
+		o.Region = DefaultRegion
 	})
 
 	return &Client{
@@ -266,7 +274,7 @@ func (c *Client) signRequest(req *http.Request) error {
 	payloadHash := hex.EncodeToString(sha256.New().Sum(bodyBytes))
 
 	// Sign the request using the signer
-	err := c.signer.SignHTTP(context.TODO(), c.credentials, req, payloadHash, "s3", c.cfg.Region, now)
+	err := c.signer.SignHTTP(context.TODO(), c.credentials, req, payloadHash, "s3", DefaultRegion, now)
 	if err != nil {
 		return fmt.Errorf("failed to sign request: %v", err)
 	}
