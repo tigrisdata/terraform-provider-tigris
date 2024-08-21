@@ -118,7 +118,9 @@ resource "tigris_bucket_public_access" "example_bucket_public_access" {
 
 ### tigris_bucket_website_config
 
-The tigris_bucket_website_config resource creates and manages a Tigris bucket website configuration. This resource supports the following actions:
+The tigris_bucket_website_config resource creates and manages a Tigris bucket website configuration. This is used to configure custom domain name for the bucket.
+
+This resource supports the following actions:
 
 - Create: Creates a new Tigris bucket website configuration.
 - Read: Retrieves information about the existing Tigris bucket website configuration.
@@ -142,7 +144,9 @@ Before using this resource, you must have a bucket created using the tigris_buck
 
 ### tigris_bucket_shadow_config
 
-The tigris_bucket_shadow_config resource creates and manages a Tigris bucket shadow configuration. This resource supports the following actions:
+The tigris_bucket_shadow_config resource creates and manages a Tigris bucket shadow configuration. The shadow configuration is used to setup a source bucket (shadow bucket) that will be used to migrate data to the Tigris bucket. You can read more about how this migration works [here](https://www.tigrisdata.com/docs/migration/).
+
+This resource supports the following actions:
 
 - Create: Creates a new Tigris bucket shadow configuration.
 - Read: Retrieves information about the existing Tigris bucket shadow configuration.
