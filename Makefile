@@ -5,6 +5,9 @@ INCLUDE_VERSION_IN_FILENAME?=false
 
 default: build
 
+install: vet fmtcheck
+	go install -ldflags="-X github.com/tigrisdata/terraform-provider-tigris/main.version=$(VERSION)"
+
 build: vet
 	@if $(INCLUDE_VERSION_IN_FILENAME); then \
 	    go build -ldflags="-X github.com/tigrisdata/terraform-provider-tigris/main.version=$(VERSION)" -o terraform-provider-tigris_$(VERSION); \
@@ -21,6 +24,7 @@ terraform-provider-lint: tools
 	 -R001=false \
 	 -R003=false \
 	 -R012=false \
+	 -R018=false \
 	 -S006=false \
 	 -S014=false \
 	 -S020=false \
@@ -59,4 +63,4 @@ tools:
 	@echo "==> Installing development tooling..."
 	go generate -tags tools tools/tools.go
 
-.PHONY: build lint terraform-provider-lint vet fmt golangci-lint tools
+.PHONY: build install lint terraform-provider-lint vet fmt golangci-lint tools
