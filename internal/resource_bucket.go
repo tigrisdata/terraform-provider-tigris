@@ -3,12 +3,13 @@ package internal
 import (
 	"context"
 	"fmt"
+	"strings"
 	"time"
 
+	"github.com/YakDriver/regexache"
 	"github.com/hashicorp/terraform-plugin-log/tflog"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/diag"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
-	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/validation"
 	"github.com/tigrisdata/terraform-provider-tigris/internal/names"
 	"github.com/tigrisdata/terraform-provider-tigris/internal/types"
 )
@@ -38,13 +39,6 @@ func resourceTigrisBucket() *schema.Resource {
 				Required:    true,
 				Description: "The name of the Tigris bucket.",
 			},
-			names.AttrAcl: {
-				Type:         schema.TypeString,
-				Optional:     true,
-				Computed:     true,
-				Description:  "The canned ACL to apply to the bucket.",
-				ValidateFunc: validation.StringInSlice(bucketCannedACL_Values(), false),
-			},
 		},
 	}
 }
@@ -53,14 +47,12 @@ func resourceBucketCreate(ctx context.Context, d *schema.ResourceData, meta inte
 	svc := meta.(*Client)
 
 	bucketName := d.Get(names.AttrBucket).(string)
-
-	input := &types.BucketRequest{
-		Bucket: bucketName,
+	if err := validBucketName(bucketName); err != nil {
+		return diag.FromErr(fmt.Errorf("invalid bucket name, %w", err))
 	}
-	if v, ok := d.GetOk(names.AttrAcl); ok {
-		input.ACL = types.BucketCannedACL(v.(string))
-	} else {
-		input.ACL = types.BucketCannedACLPrivate
+
+	input := &types.BucketUpdateInput{
+		Bucket: bucketName,
 	}
 
 	tflog.Info(ctx, "Creating bucket", map[string]interface{}{
@@ -105,63 +97,11 @@ func resourceBucketRead(ctx context.Context, d *schema.ResourceData, meta interf
 
 	d.Set(names.AttrBucket, bucketName)
 
-	tflog.Info(ctx, "Fetching bucket metadata", map[string]interface{}{
-		"bucket_name": bucketName,
-	})
-
-	metadata, err := svc.GetBucketMetadata(ctx, bucketName)
-	if err != nil {
-		return diag.FromErr(fmt.Errorf("unable to read bucket metadata, %w", err))
-	}
-
-	acl := metadata.GetBucketCannedACL()
-	d.Set(names.AttrAcl, string(acl))
-
-	tflog.Info(ctx, "Fetched bucket metadata", map[string]interface{}{
-		"metadata": metadata,
-	})
-
 	return nil
 }
 
 func resourceBucketUpdate(ctx context.Context, d *schema.ResourceData, meta interface{}) diag.Diagnostics {
-	svc := meta.(*Client)
-
-	bucketName := d.Id()
-
-	input := &types.BucketRequest{
-		Bucket: bucketName,
-	}
-	needsUpdate := false
-
-	tflog.Info(ctx, "Updating bucket", map[string]interface{}{
-		"bucket_name": bucketName,
-	})
-
-	//
-	// Bucket ACL.
-	//
-	if d.HasChange(names.AttrAcl) {
-		acl := types.BucketCannedACL(d.Get(names.AttrAcl).(string))
-		if acl == "" {
-			acl = types.BucketCannedACLPrivate
-		}
-		input.ACL = acl
-
-		tflog.Info(ctx, "Will update bucket ACL", map[string]interface{}{
-			"bucket_name": bucketName,
-		})
-
-		needsUpdate = true
-	}
-
-	if needsUpdate {
-		err := svc.UpdateBucket(ctx, input)
-		if err != nil {
-			return diag.FromErr(fmt.Errorf("unable to update bucket, %w", err))
-		}
-	}
-
+	// This resource cannot be updated
 	return resourceBucketRead(ctx, d, meta)
 }
 
@@ -179,13 +119,26 @@ func resourceBucketDelete(ctx context.Context, d *schema.ResourceData, meta inte
 	return nil
 }
 
-func bucketCannedACL_Values() []string {
-	var acl types.BucketCannedACL
-
-	values := []string{}
-	for _, value := range acl.Values() {
-		values = append(values, string(value))
+// validBucketName validates bucket name. Buckets names have to be DNS-compliant.
+func validBucketName(value string) error {
+	if (len(value) < 3) || (len(value) > 63) {
+		return fmt.Errorf("%q must contain from 3 to 63 characters", value)
+	}
+	if !regexache.MustCompile(`^[0-9a-z-.]+$`).MatchString(value) {
+		return fmt.Errorf("only lowercase alphanumeric characters and hyphens allowed in %q", value)
+	}
+	if regexache.MustCompile(`^(?:[0-9]{1,3}\.){3}[0-9]{1,3}$`).MatchString(value) {
+		return fmt.Errorf("%q must not be formatted as an IP address", value)
+	}
+	if strings.HasPrefix(value, `.`) {
+		return fmt.Errorf("%q cannot start with a period", value)
+	}
+	if strings.HasSuffix(value, `.`) {
+		return fmt.Errorf("%q cannot end with a period", value)
+	}
+	if strings.Contains(value, `..`) {
+		return fmt.Errorf("%q can be only one period between labels", value)
 	}
 
-	return values
+	return nil
 }

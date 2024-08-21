@@ -73,28 +73,36 @@ func NewClient(endpoint, accessKeyID, secretAccessKey string) (*Client, error) {
 	}, nil
 }
 
-func (c *Client) CreateBucket(ctx context.Context, input *types.BucketRequest) error {
+func (c *Client) CreateBucket(ctx context.Context, input *types.BucketUpdateInput) error {
 	if err := validateBucketRequest(input); err != nil {
 		return err
 	}
 
 	_, err := c.s3Client.CreateBucket(ctx, &s3.CreateBucketInput{
 		Bucket: aws.String(input.Bucket),
-		ACL:    s3types.BucketCannedACL(input.ACL),
 	})
 
 	return err
 }
 
-func (c *Client) UpdateBucket(ctx context.Context, input *types.BucketRequest) error {
+func (c *Client) UpdateBucket(ctx context.Context, input *types.BucketUpdateInput) error {
 	if err := validateBucketRequest(input); err != nil {
 		return err
 	}
 
 	// Set all the bucket attributes that need to be updated
-	upReq := &types.BucketUpdateRequest{
-		Website: input.Website,
+	upReq := &types.BucketUpdateRequest{}
+
+	// Set the website configuration if it's provided
+	if input.Website != nil {
+		upReq.Website = input.Website
 	}
+
+	// Set the shadow bucket configuration if it's provided
+	if input.Shadow != nil {
+		upReq.Shadow = input.Shadow
+	}
+
 	body, err := json.Marshal(upReq)
 	if err != nil {
 		return fmt.Errorf("failed to marshal update request: %w", err)
@@ -105,8 +113,14 @@ func (c *Client) UpdateBucket(ctx context.Context, input *types.BucketRequest) e
 		return fmt.Errorf("failed to create update request: %w", err)
 	}
 
-	// ACL updates are done through the header
-	req.Header.Set("X-Amz-Acl", string(input.ACL))
+	// Update bucket attributes that need to be updated via headers
+	// Update the ACL if it's provided
+	if input.ACL != nil {
+		req.Header.Set(names.HeaderAmzAcl, string(*input.ACL))
+	}
+	if input.PublicObjectsListEnabled != nil {
+		req.Header.Set(names.HeaderAmzPublicListObjects, fmt.Sprintf("%t", *input.PublicObjectsListEnabled))
+	}
 
 	//nolint:contextcheck
 	resp, err := c.doRequestWithRetry(req)
@@ -342,7 +356,7 @@ func cloneRequest(req *http.Request) (*http.Request, error) {
 	return clonedReq, nil
 }
 
-func validateBucketRequest(input *types.BucketRequest) error {
+func validateBucketRequest(input *types.BucketUpdateInput) error {
 	if input.Bucket == "" {
 		return errors.New("bucket name is required")
 	}

@@ -1,7 +1,5 @@
 package types
 
-import "time"
-
 type BucketCannedACL string
 
 // Enum values for BucketCannedACL.
@@ -18,33 +16,44 @@ func (BucketCannedACL) Values() []BucketCannedACL {
 }
 
 type BucketMetadata struct {
-	Name             string         `json:"name"`
-	CacheControl     string         `json:"cache_control"`
-	ObjectRegions    string         `json:"object_regions"`
-	MD               *BucketMD      `json:"md"`
-	Shadow           *BucketShadow  `json:"shadow_bucket"`
-	Website          *BucketWebsite `json:"website"`
-	CreatedAt        time.Time      `json:"created_at"`
-	InitialCreatedAt time.Time      `json:"initial_created_at"`
-}
-
-func (b *BucketMetadata) GetBucketCannedACL() BucketCannedACL {
-	if b.MD == nil || b.MD.ACL == "" {
-		return BucketCannedACLPrivate
-	}
-
-	return b.MD.ACL
+	Name          string               `json:"name"`
+	CacheControl  string               `json:"cache_control"`
+	ObjectRegions string               `json:"object_regions"`
+	MD            *BucketMD            `json:"md"`
+	Shadow        *BucketShadowConfig  `json:"shadow_bucket"`
+	Website       *BucketWebsiteConfig `json:"website"`
 }
 
 type BucketMD struct {
-	ACL BucketCannedACL `json:"X-Amz-Acl"`
+	ACL                      *BucketCannedACL `json:"X-Amz-Acl"`
+	PublicObjectsListEnabled *string          `json:"x-amz-acl-public-list-objects-enabled"`
 }
 
-type BucketWebsite struct {
+func (b *BucketMetadata) GetBucketCannedACL() BucketCannedACL {
+	if b.MD == nil || b.MD.ACL == nil {
+		return BucketCannedACLPrivate
+	}
+
+	return *b.MD.ACL
+}
+
+func (b *BucketMetadata) GetPublicObjectsListEnabled() bool {
+	if b.MD == nil || b.MD.PublicObjectsListEnabled == nil {
+		return true
+	}
+
+	if *b.MD.PublicObjectsListEnabled == "true" {
+		return true
+	}
+
+	return false
+}
+
+type BucketWebsiteConfig struct {
 	DomainName string `json:"domain_name"`
 }
 
-type BucketShadow struct {
+type BucketShadowConfig struct {
 	AccessKey    string `json:"access_key"`
 	SecretKey    string `json:"secret_key"`
 	Region       string `json:"region"`
@@ -53,19 +62,28 @@ type BucketShadow struct {
 	WriteThrough bool   `json:"write_through"`
 }
 
-type BucketRequest struct {
+// BucketUpdateInput is the input for the UpdateBucket function.
+type BucketUpdateInput struct {
 	// The name of the bucket to create.
 	Bucket string
 
 	// The canned ACL to apply to the bucket.
-	ACL BucketCannedACL
+	ACL *BucketCannedACL
+
+	// Whether to enable public object listing.
+	PublicObjectsListEnabled *bool
 
 	// The website configuration for the bucket.
-	Website *BucketWebsite
+	Website *BucketWebsiteConfig
+
+	// The shadow bucket configuration for the bucket.
+	Shadow *BucketShadowConfig
 }
 
+// BucketUpdateRequest is the request body for the UpdateBucket API.
 type BucketUpdateRequest struct {
-	Website *BucketWebsite
+	Website *BucketWebsiteConfig `json:"website"`
+	Shadow  *BucketShadowConfig  `json:"shadow_bucket"`
 }
 
 type BucketUpdateResponse struct {

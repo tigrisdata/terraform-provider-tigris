@@ -14,7 +14,7 @@ import (
 
 func resourceTigrisBucketWebsiteConfig() *schema.Resource {
 	return &schema.Resource{
-		Description:          "Provides a Tigris bucket website resource.",
+		Description:          "Provides a Tigris bucket website configuration resource.",
 		CreateWithoutTimeout: resourceBucketWebsiteCreate,
 		ReadWithoutTimeout:   resourceBucketWebsiteRead,
 		UpdateWithoutTimeout: resourceBucketWebsiteUpdate,
@@ -52,9 +52,9 @@ func resourceBucketWebsiteCreate(ctx context.Context, d *schema.ResourceData, me
 	bucketName := d.Get(names.AttrBucket).(string)
 	website_domain := d.Get(names.AttrDomainName).(string)
 
-	input := &types.BucketRequest{
+	input := &types.BucketUpdateInput{
 		Bucket: bucketName,
-		Website: &types.BucketWebsite{
+		Website: &types.BucketWebsiteConfig{
 			DomainName: website_domain,
 		},
 	}
@@ -110,7 +110,7 @@ func resourceBucketWebsiteRead(ctx context.Context, d *schema.ResourceData, meta
 	}
 
 	tflog.Info(ctx, "Fetched bucket metadata", map[string]interface{}{
-		"metadata": metadata,
+		"bucket_name": bucketName,
 	})
 
 	if metadata.Website != nil && metadata.Website.DomainName != "" {
@@ -131,7 +131,7 @@ func resourceBucketWebsiteUpdate(ctx context.Context, d *schema.ResourceData, me
 
 	bucketName := d.Id()
 
-	input := &types.BucketRequest{
+	input := &types.BucketUpdateInput{
 		Bucket: bucketName,
 	}
 	needsUpdate := false
@@ -144,7 +144,7 @@ func resourceBucketWebsiteUpdate(ctx context.Context, d *schema.ResourceData, me
 	// Bucket Domain Name.
 	//
 	if d.HasChange(names.AttrDomainName) {
-		input.Website = &types.BucketWebsite{
+		input.Website = &types.BucketWebsiteConfig{
 			DomainName: d.Get(names.AttrDomainName).(string),
 		}
 
@@ -174,9 +174,9 @@ func resourceBucketWebsiteDelete(ctx context.Context, d *schema.ResourceData, me
 
 	bucketName := d.Id()
 
-	input := &types.BucketRequest{
+	input := &types.BucketUpdateInput{
 		Bucket: bucketName,
-		Website: &types.BucketWebsite{
+		Website: &types.BucketWebsiteConfig{
 			DomainName: "",
 		},
 	}

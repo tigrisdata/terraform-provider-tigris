@@ -31,8 +31,10 @@ func Provider() *schema.Provider {
 			},
 		},
 		ResourcesMap: map[string]*schema.Resource{
-			"tigris_bucket":         resourceTigrisBucket(),
-			"tigris_bucket_website": resourceTigrisBucketWebsiteConfig(),
+			"tigris_bucket":                resourceTigrisBucket(),
+			"tigris_bucket_public_access":  resourceTigrisBucketPublicAccess(),
+			"tigris_bucket_website_config": resourceTigrisBucketWebsiteConfig(),
+			"tigris_bucket_shadow_config":  resourceTigrisBucketShadowConfig(),
 		},
 		ConfigureFunc: providerConfigure,
 	}
