@@ -20,7 +20,6 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 	s3types "github.com/aws/aws-sdk-go-v2/service/s3/types"
 	shttp "github.com/aws/smithy-go/transport/http"
-	"github.com/tigrisdata/terraform-provider-tigris/internal/names"
 	"github.com/tigrisdata/terraform-provider-tigris/internal/types"
 )
 
@@ -30,6 +29,14 @@ const (
 
 	// DefaultRegion is the default region for Tigris object storage service.
 	DefaultRegion = "auto"
+
+	// Headers for the requests to Tigris.
+	HeaderContentType          = "Content-Type"
+	HeaderAccept               = "Accept"
+	HeaderAmzContentSha        = "X-Amz-Content-Sha256"
+	HeaderAmzIdentityId        = "S3-Identity-Id"
+	HeaderAmzAcl               = "X-Amz-Acl"
+	HeaderAmzPublicListObjects = "X-Amz-Acl-Public-List-Objects-Enabled"
 )
 
 type Client struct {
@@ -116,10 +123,10 @@ func (c *Client) UpdateBucket(ctx context.Context, input *types.BucketUpdateInpu
 	// Update bucket attributes that need to be updated via headers
 	// Update the ACL if it's provided
 	if input.ACL != nil {
-		req.Header.Set(names.HeaderAmzAcl, string(*input.ACL))
+		req.Header.Set(HeaderAmzAcl, string(*input.ACL))
 	}
 	if input.PublicObjectsListEnabled != nil {
-		req.Header.Set(names.HeaderAmzPublicListObjects, fmt.Sprintf("%t", *input.PublicObjectsListEnabled))
+		req.Header.Set(HeaderAmzPublicListObjects, fmt.Sprintf("%t", *input.PublicObjectsListEnabled))
 	}
 
 	//nolint:contextcheck
@@ -144,7 +151,7 @@ func (c *Client) UpdateBucket(ctx context.Context, input *types.BucketUpdateInpu
 func (c *Client) HeadBucket(ctx context.Context, bucketName string) (bool, error) {
 	_, err := c.s3Client.HeadBucket(ctx, &s3.HeadBucketInput{
 		Bucket: aws.String(bucketName),
-	}, withHeader(names.HeaderAmzIdentityId, c.credentials.AccessKeyID))
+	}, withHeader(HeaderAmzIdentityId, c.credentials.AccessKeyID))
 
 	exists := true
 	if err != nil {
@@ -300,8 +307,8 @@ func (c *Client) signRequest(req *http.Request) error {
 	now := time.Now()
 
 	// Set default headers
-	req.Header.Set(names.HeaderContentType, "application/json")
-	req.Header.Set(names.HeaderAccept, "application/json")
+	req.Header.Set(HeaderContentType, "application/json")
+	req.Header.Set(HeaderAccept, "application/json")
 
 	// Buffer the request body if it exists
 	var bodyBytes []byte
@@ -324,7 +331,7 @@ func (c *Client) signRequest(req *http.Request) error {
 	}
 
 	// set the content sha256 header
-	req.Header.Set(names.HeaderAmzContentSha, payloadHash)
+	req.Header.Set(HeaderAmzContentSha, payloadHash)
 
 	// Sign the request using the signer
 	err := c.signer.SignHTTP(context.TODO(), c.credentials, req, payloadHash, "s3", DefaultRegion, now)
