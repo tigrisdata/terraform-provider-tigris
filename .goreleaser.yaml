@@ -22,6 +22,18 @@ checksum:
     - glob: "terraform-registry-manifest.json"
       name_template: "terraform-provider-tigris_{{ .Version }}_manifest.json"
   algorithm: sha256
+
+signs:
+  - artifacts: checksum
+    args:
+      - "--batch"
+      - "--local-user"
+      - "{{ .Env.GPG_FINGERPRINT }}" # set this environment variable for your signing key
+      - "--output"
+      - "${signature}"
+      - "--detach-sign"
+      - "${artifact}"
+
 release:
   extra_files:
     - glob: "terraform-registry-manifest.json"
