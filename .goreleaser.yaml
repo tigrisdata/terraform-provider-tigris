@@ -13,10 +13,16 @@ builds:
       - -w -extldflags '-static'
 
 archives:
-  - format_overrides:
-      - goos: windows
-        format: zip
+  - format: zip
     name_template: "terraform-provider-tigris_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
 
 checksum:
-  name_template: 'checksums.txt'
+  name_template: "terraform-provider-tigris_{{ .Version }}_SHA256SUMS"
+  extra_files:
+    - glob: "terraform-registry-manifest.json"
+      name_template: "terraform-provider-tigris_{{ .Version }}_manifest.json"
+  algorithm: sha256
+release:
+  extra_files:
+    - glob: "terraform-registry-manifest.json"
+      name_template: "terraform-provider-tigris_{{ .Version }}_manifest.json"
