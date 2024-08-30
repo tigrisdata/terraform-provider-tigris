@@ -63,4 +63,7 @@ tools:
 	@echo "==> Installing development tooling..."
 	go generate -tags tools tools/tools.go
 
+docs: tools
+	@sh -c "'$(CURDIR)/scripts/generate-docs.sh'"
+
 .PHONY: build install lint terraform-provider-lint vet fmt golangci-lint tools
