@@ -2,19 +2,9 @@
 package internal
 
 import (
-	"context"
 	"fmt"
 
-	"github.com/aws/aws-sdk-go-v2/aws"
-	"github.com/aws/aws-sdk-go-v2/config"
-	"github.com/aws/aws-sdk-go-v2/credentials"
-	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
-)
-
-const (
-	// DefaultEndpoint is the default endpoint for Tigris object storage service.
-	DefaultEndpoint = "https://fly.storage.tigris.dev"
 )
 
 func Provider() *schema.Provider {
@@ -41,7 +31,10 @@ func Provider() *schema.Provider {
 			},
 		},
 		ResourcesMap: map[string]*schema.Resource{
-			"tigris_bucket": resourceTigrisBucket(),
+			"tigris_bucket":                resourceTigrisBucket(),
+			"tigris_bucket_public_access":  resourceTigrisBucketPublicAccess(),
+			"tigris_bucket_website_config": resourceTigrisBucketWebsiteConfig(),
+			"tigris_bucket_shadow_config":  resourceTigrisBucketShadowConfig(),
 		},
 		ConfigureFunc: providerConfigure,
 	}
@@ -52,18 +45,10 @@ func providerConfigure(d *schema.ResourceData) (interface{}, error) {
 	secretKey := d.Get("secret_key").(string)
 	endpoint := d.Get("endpoint").(string)
 
-	cfg, err := config.LoadDefaultConfig(context.TODO(),
-		config.WithCredentialsProvider(credentials.NewStaticCredentialsProvider(accessKey, secretKey, "")),
-	)
+	svc, err := NewClient(endpoint, accessKey, secretKey)
 	if err != nil {
 		return nil, fmt.Errorf("unable to load SDK config, %w", err)
 	}
-
-	// Create S3 service client
-	svc := s3.NewFromConfig(cfg, func(o *s3.Options) {
-		o.BaseEndpoint = aws.String(endpoint)
-		o.Region = "auto"
-	})
 
 	return svc, nil
 }
