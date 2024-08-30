@@ -176,6 +176,16 @@ resource "tigris_bucket_shadow_config" "example_shadow_config" {
 }
 ```
 
+## Developing
+
+### Documentation
+
+The documentation for this provider is generated using terraform-plugin-docs. To generate the documentation, run the following command:
+
+```shell
+make docs
+```
+
 ## Contributing
 
 Contributions are welcome! Please feel free to submit a Pull Request.
