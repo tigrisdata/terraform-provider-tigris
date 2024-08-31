@@ -15,7 +15,7 @@ import (
 
 func resourceTigrisBucketPublicAccess() *schema.Resource {
 	return &schema.Resource{
-		Description:          "Provides a Tigris bucket resource. This can be used to create and manage Tigris buckets.",
+		Description:          "Provides a Tigris bucket public access configuration resource.",
 		CreateWithoutTimeout: resourceBucketPublicAccessCreate,
 		ReadWithoutTimeout:   resourceBucketPublicAccessRead,
 		UpdateWithoutTimeout: resourceBucketPublicAccessUpdate,

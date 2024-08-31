@@ -1,0 +1,27 @@
+---
+layout: ""
+page_title: "Provider: Tigris"
+description: |-
+  The Tigris provider allows you to create and manage Tigris buckets.
+---
+
+# Tigris Provider
+
+The Tigris provider is used to interact with buckets. This provider 
+supports creating, reading, updating, deleting, and importing Tigris 
+buckets with additional customization options like specifying access keys.
+
+The provider needs to be configured with the proper credentials
+before it can be used.
+
+## Getting Started
+
+Follow the [getting started guide](https://www.tigrisdata.com/docs/get-started/)
+to setup your Tigris account. You will need to create an access key to use the
+Tigris provider.
+
+## Example Usage
+
+{{ tffile "examples/provider/provider.tf" }}
+
+{{ .SchemaMarkdown | trimspace }}
