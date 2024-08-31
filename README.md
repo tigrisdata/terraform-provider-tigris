@@ -10,7 +10,7 @@ Below is an example of how to use the Tigris provider in your Terraform configur
 terraform {
   required_providers {
     tigris = {
-      source  = "https://github.com/tigrisdata/terraform-provider-tigris"
+      source  = "tigrisdata/tigris"
     }
   }
 }
