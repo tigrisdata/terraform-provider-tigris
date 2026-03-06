@@ -104,11 +104,7 @@ func resourceBucketSnapshotRead(ctx context.Context, d *schema.ResourceData, met
 	if snapshotName != "" {
 		snapshot, err := svc.GetSnapshotByName(ctx, sourceBucket, snapshotName)
 		if err != nil {
-			tflog.Warn(ctx, "Snapshot not found by name, preserving state", map[string]interface{}{
-				"source_bucket": sourceBucket,
-				"snapshot_name": snapshotName,
-			})
-			return nil
+			return diag.FromErr(fmt.Errorf("unable to read snapshot %q for bucket %q: %w", snapshotName, sourceBucket, err))
 		}
 		d.Set(names.AttrSnapshotName, snapshot.Name)
 		d.Set(names.AttrSnapshotCreatedAt, snapshot.CreatedAt)
@@ -138,17 +134,26 @@ func resourceBucketSnapshotImport(_ context.Context, d *schema.ResourceData, _ i
 }
 
 func parseBucketSnapshotID(id string) (string, string, error) {
-	parts := strings.SplitN(id, ":", 2)
-	if len(parts) != 2 || parts[0] == "" || parts[1] == "" {
+	// Split into exactly 2 parts: bucket and version.
+	// Use the first colon as the delimiter since bucket names cannot contain colons,
+	// but snapshot versions might (e.g. RFC 3339 timestamps).
+	idx := strings.IndexByte(id, ':')
+	if idx <= 0 || idx >= len(id)-1 {
 		return "", "", fmt.Errorf("invalid snapshot ID format %q, expected {source_bucket}:{snapshot_version}", id)
 	}
-	return parts[0], parts[1], nil
+	return id[:idx], id[idx+1:], nil
 }
 
 func parseBucketSnapshotImportID(id string) (string, string, string, error) {
-	parts := strings.SplitN(id, ":", 3)
-	if len(parts) != 3 || parts[0] == "" || parts[1] == "" || parts[2] == "" {
+	// Format: {source_bucket}:{snapshot_version}:{snapshot_name}
+	// Bucket names cannot contain colons, and snapshot names are user-provided simple strings.
+	// Snapshot versions may contain colons (e.g. RFC 3339 timestamps), so we split on
+	// the first colon (bucket) and last colon (snapshot name), leaving everything in
+	// between as the version.
+	firstColon := strings.IndexByte(id, ':')
+	lastColon := strings.LastIndexByte(id, ':')
+	if firstColon <= 0 || lastColon <= firstColon || lastColon >= len(id)-1 {
 		return "", "", "", fmt.Errorf("invalid snapshot import ID format %q, expected {source_bucket}:{snapshot_version}:{snapshot_name}", id)
 	}
-	return parts[0], parts[1], parts[2], nil
+	return id[:firstColon], id[firstColon+1 : lastColon], id[lastColon+1:], nil
 }

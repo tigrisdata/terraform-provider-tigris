@@ -61,6 +61,14 @@ var (
 	ValidSingleRegions = []string{"ams", "fra", "gru", "iad", "jnb", "lhr", "nrt", "ord", "sin", "sjc", "syd"}
 )
 
+// BucketType represents the type of a Tigris bucket.
+const (
+	// BucketTypeDefault is a standard bucket without snapshots.
+	BucketTypeDefault = 0
+	// BucketTypeSnapshot is a bucket with snapshots enabled.
+	BucketTypeSnapshot = 1
+)
+
 type BucketMetadata struct {
 	Name          string               `json:"name"`
 	CacheControl  string               `json:"cache_control"`
@@ -146,7 +154,7 @@ func (b *BucketMetadata) GetLocationTypeAndRegions() (LocationType, []string) {
 
 // IsSnapshotEnabled returns true if snapshots are enabled for this bucket.
 func (b *BucketMetadata) IsSnapshotEnabled() bool {
-	return b.Type == 1
+	return b.Type == BucketTypeSnapshot
 }
 
 type BucketWebsiteConfig struct {
