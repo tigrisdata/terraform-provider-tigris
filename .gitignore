@@ -37,3 +37,7 @@ pkg/
 # Go workspace file
 go.work
 go.work.sum
+
+# Terraform files
+*.tfstate
+*.tfstate.backup
