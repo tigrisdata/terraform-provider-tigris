@@ -8,14 +8,19 @@ terraform {
 
 provider "tigris" {}
 
+variable "test_id" {
+  type    = string
+  default = "t"
+}
+
 # Basic bucket with defaults
 resource "tigris_bucket" "basic" {
-  bucket = "test-basic-bucket"
+  bucket = "${var.test_id}-basic-bucket"
 }
 
 # Bucket with a non-default storage tier
 resource "tigris_bucket" "standard_ia" {
-  bucket               = "test-standard-ia-bucket"
+  bucket               = "${var.test_id}-standard-ia-bucket"
   default_storage_tier = "STANDARD_IA"
 }
 

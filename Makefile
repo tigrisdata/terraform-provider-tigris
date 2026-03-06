@@ -2,6 +2,7 @@ GOFMT_FILES?=$$(find . -name '*.go')
 PKG_NAME=tigris
 VERSION?=$(shell git describe --tags --always)
 INCLUDE_VERSION_IN_FILENAME?=false
+TEST_ID?=t-$(shell date +%s | tail -c 8)
 
 default: build
 
@@ -71,7 +72,11 @@ tools:
 	@echo "==> Installing development tooling..."
 	go generate -tags tools tools/tools.go
 
+test: build
+	@echo "==> Running integration tests with TEST_ID=$(TEST_ID)..."
+	@TEST_ID=$(TEST_ID) bash scripts/run-tests.sh
+
 docs: tools
 	@sh -c "'$(CURDIR)/scripts/generate-docs.sh'"
 
-.PHONY: build install lint terraform-provider-lint vet fmt fmtcheck golangci-lint tools
+.PHONY: build install lint terraform-provider-lint vet fmt fmtcheck golangci-lint tools test

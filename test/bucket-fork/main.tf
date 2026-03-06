@@ -8,15 +8,20 @@ terraform {
 
 provider "tigris" {}
 
+variable "test_id" {
+  type    = string
+  default = "t"
+}
+
 # Source bucket to fork from (must have snapshots enabled)
 resource "tigris_bucket" "source" {
-  bucket          = "test-fork-source-bucket"
+  bucket          = "${var.test_id}-fork-src-bucket"
   enable_snapshot = true
 }
 
 # Fork the source bucket (direct fork, no snapshot)
 resource "tigris_bucket_fork" "fork" {
-  bucket             = "test-forked-bucket"
+  bucket             = "${var.test_id}-forked-bucket"
   fork_source_bucket = tigris_bucket.source.bucket
 }
 

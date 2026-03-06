@@ -8,14 +8,19 @@ terraform {
 
 provider "tigris" {}
 
+variable "test_id" {
+  type    = string
+  default = "t"
+}
+
 # Global bucket (default behavior, no location block needed)
 resource "tigris_bucket" "global" {
-  bucket = "test-global-bucket"
+  bucket = "${var.test_id}-global-bucket"
 }
 
 # Single-region bucket
 resource "tigris_bucket" "single_region" {
-  bucket = "test-single-region-bucket"
+  bucket = "${var.test_id}-single-region-bucket"
 
   location {
     type    = "single"
@@ -25,7 +30,7 @@ resource "tigris_bucket" "single_region" {
 
 # Multi-region bucket
 resource "tigris_bucket" "multi_region" {
-  bucket = "test-multi-region-bucket"
+  bucket = "${var.test_id}-multi-region-bucket"
 
   location {
     type    = "multi"
@@ -35,7 +40,7 @@ resource "tigris_bucket" "multi_region" {
 
 # Dual-region bucket
 resource "tigris_bucket" "dual_region" {
-  bucket = "test-dual-region-bucket"
+  bucket = "${var.test_id}-dual-region-bucket"
 
   location {
     type    = "dual"

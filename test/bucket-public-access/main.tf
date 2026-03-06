@@ -8,8 +8,13 @@ terraform {
 
 provider "tigris" {}
 
+variable "test_id" {
+  type    = string
+  default = "t"
+}
+
 resource "tigris_bucket" "bucket" {
-  bucket = "test-public-access-bucket"
+  bucket = "${var.test_id}-pub-access-bucket"
 }
 
 resource "tigris_bucket_public_access" "public" {

@@ -8,6 +8,11 @@ terraform {
 
 provider "tigris" {}
 
+variable "test_id" {
+  type    = string
+  default = "t"
+}
+
 # Bucket whose location can be updated in-place.
 #
 # To test the update path:
@@ -15,7 +20,7 @@ provider "tigris" {}
 #   2. Change the location block below (e.g. to multi-region "usa")
 #   3. Apply again and verify the update succeeds
 resource "tigris_bucket" "updatable" {
-  bucket = "test-updatable-bucket"
+  bucket = "${var.test_id}-updatable-bucket"
 
   location {
     type    = "single"

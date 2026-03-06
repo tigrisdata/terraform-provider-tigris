@@ -291,8 +291,11 @@ func (c *Client) ListSnapshots(ctx context.Context, sourceBucket string) ([]type
 
 	snapshots := make([]types.SnapshotInfo, 0, len(output.Buckets))
 	for _, b := range output.Buckets {
+		// The Name field from ListBuckets has the format: "{version}; name={snapshot_name}"
+		version, name := parseSnapshotBucketName(aws.ToString(b.Name))
 		info := types.SnapshotInfo{
-			Name: aws.ToString(b.Name),
+			Version: version,
+			Name:    name,
 		}
 		if b.CreationDate != nil {
 			info.CreatedAt = b.CreationDate.Format(time.RFC3339)
@@ -301,6 +304,18 @@ func (c *Client) ListSnapshots(ctx context.Context, sourceBucket string) ([]type
 	}
 
 	return snapshots, nil
+}
+
+// parseSnapshotBucketName parses the snapshot Name field from the ListBuckets API.
+// The format is "{version}; name={snapshot_name}". If the format doesn't match,
+// the entire string is returned as the version with an empty name.
+func parseSnapshotBucketName(raw string) (version, name string) {
+	const sep = "; name="
+	idx := strings.Index(raw, sep)
+	if idx < 0 {
+		return raw, ""
+	}
+	return raw[:idx], raw[idx+len(sep):]
 }
 
 func (c *Client) GetSnapshotByName(ctx context.Context, sourceBucket, name string) (*types.SnapshotInfo, error) {

@@ -172,6 +172,7 @@ type BucketShadowConfig struct {
 
 // SnapshotInfo represents a single snapshot.
 type SnapshotInfo struct {
+	Version   string
 	Name      string
 	CreatedAt string
 }
