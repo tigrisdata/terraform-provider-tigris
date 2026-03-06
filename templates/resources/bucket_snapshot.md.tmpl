@@ -23,7 +23,7 @@ description: |-
 {{ if .HasImport -}}
 ## Import
 
-Import is supported using the following syntax. The ID format is `{source_bucket}:{snapshot_version}`.
+Import is supported using the following syntax. The ID format is `{source_bucket}:{snapshot_version}:{snapshot_name}`.
 
 {{codefile "shell" .ImportFile}}
 {{- end }}

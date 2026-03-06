@@ -99,24 +99,21 @@ func resourceBucketSnapshotRead(ctx context.Context, d *schema.ResourceData, met
 	d.Set(names.AttrSourceBucket, sourceBucket)
 	d.Set(names.AttrSnapshotVersion, version)
 
-	// List snapshots to find this one and get its metadata.
-	snapshots, err := svc.ListSnapshots(ctx, sourceBucket)
-	if err != nil {
-		return diag.FromErr(fmt.Errorf("unable to list snapshots, %w", err))
-	}
-
-	// Look for snapshot by name. When snapshot_name is set, match by name.
-	// When snapshot_name is not set, match snapshots with an empty name.
+	// Look up the snapshot by name to populate metadata.
 	snapshotName := d.Get(names.AttrSnapshotName).(string)
-	for _, s := range snapshots {
-		if s.Name == snapshotName {
-			d.Set(names.AttrSnapshotCreatedAt, s.CreatedAt)
+	if snapshotName != "" {
+		snapshot, err := svc.GetSnapshotByName(ctx, sourceBucket, snapshotName)
+		if err != nil {
+			tflog.Warn(ctx, "Snapshot not found by name, preserving state", map[string]interface{}{
+				"source_bucket": sourceBucket,
+				"snapshot_name": snapshotName,
+			})
 			return nil
 		}
+		d.Set(names.AttrSnapshotName, snapshot.Name)
+		d.Set(names.AttrSnapshotCreatedAt, snapshot.CreatedAt)
 	}
 
-	// If we didn't find a match, the snapshot still exists (we have the version).
-	// The list API doesn't return versions directly, so we just preserve state.
 	return nil
 }
 
@@ -127,13 +124,15 @@ func resourceBucketSnapshotDelete(_ context.Context, d *schema.ResourceData, _ i
 }
 
 func resourceBucketSnapshotImport(_ context.Context, d *schema.ResourceData, _ interface{}) ([]*schema.ResourceData, error) {
-	sourceBucket, version, err := parseBucketSnapshotID(d.Id())
+	sourceBucket, version, snapshotName, err := parseBucketSnapshotImportID(d.Id())
 	if err != nil {
 		return nil, err
 	}
 
+	d.SetId(fmt.Sprintf("%s:%s", sourceBucket, version))
 	d.Set(names.AttrSourceBucket, sourceBucket)
 	d.Set(names.AttrSnapshotVersion, version)
+	d.Set(names.AttrSnapshotName, snapshotName)
 
 	return []*schema.ResourceData{d}, nil
 }
@@ -144,4 +143,12 @@ func parseBucketSnapshotID(id string) (string, string, error) {
 		return "", "", fmt.Errorf("invalid snapshot ID format %q, expected {source_bucket}:{snapshot_version}", id)
 	}
 	return parts[0], parts[1], nil
+}
+
+func parseBucketSnapshotImportID(id string) (string, string, string, error) {
+	parts := strings.SplitN(id, ":", 3)
+	if len(parts) != 3 || parts[0] == "" || parts[1] == "" || parts[2] == "" {
+		return "", "", "", fmt.Errorf("invalid snapshot import ID format %q, expected {source_bucket}:{snapshot_version}:{snapshot_name}", id)
+	}
+	return parts[0], parts[1], parts[2], nil
 }

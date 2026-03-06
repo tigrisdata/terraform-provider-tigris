@@ -222,7 +222,7 @@ This resource supports the following actions:
 - Create: Creates a new snapshot of the source bucket.
 - Read: Retrieves information about the snapshot.
 - Delete: Removes the snapshot from Terraform state (no API deletion).
-- Import: Imports an existing snapshot using the format `{source_bucket}:{snapshot_version}`.
+- Import: Imports an existing snapshot using the format `{source_bucket}:{snapshot_version}:{snapshot_name}`.
 
 #### Configuration
 

@@ -106,15 +106,15 @@ func resourceBucketForkRead(ctx context.Context, d *schema.ResourceData, meta in
 	})
 
 	exists, err := svc.HeadBucket(ctx, bucketName)
+	if err != nil {
+		return diag.FromErr(fmt.Errorf("unable to read forked bucket, %w", err))
+	}
 	if !exists {
 		tflog.Warn(ctx, "Forked bucket not found, removing from state", map[string]interface{}{
 			"bucket_name": bucketName,
 		})
 		d.SetId("")
 		return nil
-	}
-	if err != nil {
-		return diag.FromErr(fmt.Errorf("unable to read forked bucket, %w", err))
 	}
 
 	d.Set(names.AttrBucket, bucketName)
