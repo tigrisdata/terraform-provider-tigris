@@ -324,9 +324,10 @@ func (c *Client) FindBucketWithRetry(ctx context.Context, bucketName string) (bo
 	maxBackoffDelay := 60 * time.Second
 
 	var exists bool
+	var err error
 
 	for i := 0; i < maxRetries; i++ {
-		exists, err := c.HeadBucket(ctx, bucketName)
+		exists, err = c.HeadBucket(ctx, bucketName)
 		if err != nil {
 			return false, err
 		}

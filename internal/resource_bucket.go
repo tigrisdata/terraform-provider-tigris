@@ -156,6 +156,9 @@ func resourceBucketRead(ctx context.Context, d *schema.ResourceData, meta interf
 	})
 
 	exists, err := svc.HeadBucket(ctx, bucketName)
+	if err != nil {
+		return diag.FromErr(fmt.Errorf("unable to read bucket, %w", err))
+	}
 	if !exists {
 		tflog.Warn(ctx, "Bucket not found, removing from state", map[string]interface{}{
 			"bucket_name": bucketName,
@@ -163,9 +166,6 @@ func resourceBucketRead(ctx context.Context, d *schema.ResourceData, meta interf
 
 		d.SetId("")
 		return nil
-	}
-	if err != nil {
-		return diag.FromErr(fmt.Errorf("unable to read bucket, %w", err))
 	}
 
 	d.Set(names.AttrBucket, bucketName)
