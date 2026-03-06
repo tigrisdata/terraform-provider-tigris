@@ -311,8 +311,8 @@ func validateLocation(locationType string, regions []string) error {
 			return fmt.Errorf("invalid multi-region geography %q, must be one of: %s", regions[0], strings.Join(types.ValidMultiRegions, ", "))
 		}
 	case types.LocationTypeDual:
-		if len(regions) != 2 {
-			return fmt.Errorf("exactly two regions must be specified for dual location type")
+		if len(regions) < 2 {
+			return fmt.Errorf("at least two regions must be specified for dual location type")
 		}
 		for _, r := range regions {
 			if !stringInSlice(r, types.ValidSingleRegions) {

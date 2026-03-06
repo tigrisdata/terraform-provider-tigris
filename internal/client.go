@@ -318,37 +318,6 @@ func (c *Client) GetSnapshotByName(ctx context.Context, sourceBucket, name strin
 	return nil, fmt.Errorf("snapshot %q not found for bucket %q", name, sourceBucket)
 }
 
-func (c *Client) HeadBucketWithHeaders(ctx context.Context, bucketName string) (map[string]string, error) {
-	req, err := http.NewRequestWithContext(ctx, http.MethodHead, c.bucketURL(bucketName, nil), nil)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create head request: %w", err)
-	}
-
-	//nolint:contextcheck
-	resp, err := c.doRequestWithRetry(req)
-	if err != nil {
-		return nil, fmt.Errorf("failed to head bucket: %w", err)
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("head bucket failed with code: %d", resp.StatusCode)
-	}
-
-	headers := make(map[string]string)
-	for _, key := range []string{
-		HeaderTigrisEnableSnapshot,
-		HeaderTigrisForkSourceBucket,
-		HeaderTigrisForkSourceSnapshot,
-	} {
-		if v := resp.Header.Get(key); v != "" {
-			headers[key] = v
-		}
-	}
-
-	return headers, nil
-}
-
 func (c *Client) FindBucketWithRetry(ctx context.Context, bucketName string) (bool, error) {
 	maxRetries := 5
 	backoffDelay := 3 * time.Second

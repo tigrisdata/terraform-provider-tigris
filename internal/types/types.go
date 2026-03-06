@@ -140,12 +140,8 @@ func (b *BucketMetadata) GetLocationTypeAndRegions() (LocationType, []string) {
 		return LocationTypeSingle, regions
 	}
 
-	if len(regions) == 2 {
-		return LocationTypeDual, regions
-	}
-
-	// Fallback for 3+ regions
-	return LocationTypeMulti, regions
+	// 2+ regions is dual location type
+	return LocationTypeDual, regions
 }
 
 // IsSnapshotEnabled returns true if snapshots are enabled for this bucket.
@@ -169,7 +165,6 @@ type BucketShadowConfig struct {
 // SnapshotInfo represents a single snapshot.
 type SnapshotInfo struct {
 	Name      string
-	Version   string
 	CreatedAt string
 }
 

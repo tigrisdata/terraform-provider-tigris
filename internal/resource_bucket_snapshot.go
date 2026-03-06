@@ -67,18 +67,18 @@ func resourceBucketSnapshotCreate(ctx context.Context, d *schema.ResourceData, m
 		"snapshot_name": snapshotName,
 	})
 
-	version, err := svc.CreateSnapshot(ctx, sourceBucket, snapshotName)
+	snapshotVersion, err := svc.CreateSnapshot(ctx, sourceBucket, snapshotName)
 	if err != nil {
 		return diag.FromErr(fmt.Errorf("unable to create snapshot, %w", err))
 	}
 
 	tflog.Info(ctx, "Bucket snapshot created successfully", map[string]interface{}{
 		"source_bucket":    sourceBucket,
-		"snapshot_version": version,
+		"snapshot_version": snapshotVersion,
 	})
 
-	d.SetId(fmt.Sprintf("%s:%s", sourceBucket, version))
-	d.Set(names.AttrSnapshotVersion, version)
+	d.SetId(fmt.Sprintf("%s:%s", sourceBucket, snapshotVersion))
+	d.Set(names.AttrSnapshotVersion, snapshotVersion)
 
 	return resourceBucketSnapshotRead(ctx, d, meta)
 }
@@ -86,18 +86,18 @@ func resourceBucketSnapshotCreate(ctx context.Context, d *schema.ResourceData, m
 func resourceBucketSnapshotRead(ctx context.Context, d *schema.ResourceData, meta interface{}) diag.Diagnostics {
 	svc := meta.(*Client)
 
-	sourceBucket, version, err := parseBucketSnapshotID(d.Id())
+	sourceBucket, snapshotVersion, err := parseBucketSnapshotID(d.Id())
 	if err != nil {
 		return diag.FromErr(err)
 	}
 
 	tflog.Info(ctx, "Reading bucket snapshot", map[string]interface{}{
 		"source_bucket":    sourceBucket,
-		"snapshot_version": version,
+		"snapshot_version": snapshotVersion,
 	})
 
 	d.Set(names.AttrSourceBucket, sourceBucket)
-	d.Set(names.AttrSnapshotVersion, version)
+	d.Set(names.AttrSnapshotVersion, snapshotVersion)
 
 	// Look up the snapshot by name to populate metadata.
 	snapshotName := d.Get(names.AttrSnapshotName).(string)
@@ -124,14 +124,14 @@ func resourceBucketSnapshotDelete(_ context.Context, d *schema.ResourceData, _ i
 }
 
 func resourceBucketSnapshotImport(_ context.Context, d *schema.ResourceData, _ interface{}) ([]*schema.ResourceData, error) {
-	sourceBucket, version, snapshotName, err := parseBucketSnapshotImportID(d.Id())
+	sourceBucket, snapshotVersion, snapshotName, err := parseBucketSnapshotImportID(d.Id())
 	if err != nil {
 		return nil, err
 	}
 
-	d.SetId(fmt.Sprintf("%s:%s", sourceBucket, version))
+	d.SetId(fmt.Sprintf("%s:%s", sourceBucket, snapshotVersion))
 	d.Set(names.AttrSourceBucket, sourceBucket)
-	d.Set(names.AttrSnapshotVersion, version)
+	d.Set(names.AttrSnapshotVersion, snapshotVersion)
 	d.Set(names.AttrSnapshotName, snapshotName)
 
 	return []*schema.ResourceData{d}, nil
