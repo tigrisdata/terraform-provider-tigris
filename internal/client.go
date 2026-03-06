@@ -11,6 +11,7 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"strings"
 	"time"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
@@ -37,6 +38,15 @@ const (
 	HeaderAmzIdentityId        = "S3-Identity-Id"
 	HeaderAmzAcl               = "X-Amz-Acl"
 	HeaderAmzPublicListObjects = "X-Amz-Acl-Public-List-Objects-Enabled"
+
+	// Tigris-specific headers for bucket configuration.
+	HeaderAmzStorageClass          = "X-Amz-Storage-Class"
+	HeaderTigrisRegions            = "X-Tigris-Regions"
+	HeaderTigrisEnableSnapshot     = "X-Tigris-Enable-Snapshot"
+	HeaderTigrisForkSourceBucket   = "X-Tigris-Fork-Source-Bucket"
+	HeaderTigrisForkSourceSnapshot = "X-Tigris-Fork-Source-Bucket-Snapshot"
+	HeaderTigrisSnapshot           = "X-Tigris-Snapshot"
+	HeaderTigrisSnapshotVersion    = "X-Tigris-Snapshot-Version"
 )
 
 type Client struct {
@@ -85,9 +95,36 @@ func (c *Client) CreateBucket(ctx context.Context, input *types.BucketUpdateInpu
 		return err
 	}
 
+	var opts []func(*s3.Options)
+
+	// Add storage class header for default tier.
+	if input.DefaultStorageTier != nil {
+		opts = append(opts, withHeader(HeaderAmzStorageClass, string(*input.DefaultStorageTier)))
+	}
+
+	// Add regions header (only when not global).
+	if len(input.LocationRegions) > 0 {
+		opts = append(opts, withHeader(HeaderTigrisRegions, strings.Join(input.LocationRegions, ",")))
+	}
+
+	// Add snapshot enable header.
+	if input.EnableSnapshot != nil && *input.EnableSnapshot {
+		opts = append(opts, withHeader(HeaderTigrisEnableSnapshot, "true"))
+	}
+
+	// Add fork source bucket header.
+	if input.ForkSourceBucket != nil {
+		opts = append(opts, withHeader(HeaderTigrisForkSourceBucket, *input.ForkSourceBucket))
+	}
+
+	// Add fork source snapshot header.
+	if input.ForkSourceSnapshot != nil {
+		opts = append(opts, withHeader(HeaderTigrisForkSourceSnapshot, *input.ForkSourceSnapshot))
+	}
+
 	_, err := c.s3Client.CreateBucket(ctx, &s3.CreateBucketInput{
 		Bucket: aws.String(input.Bucket),
-	})
+	}, opts...)
 
 	return err
 }
@@ -108,6 +145,12 @@ func (c *Client) UpdateBucket(ctx context.Context, input *types.BucketUpdateInpu
 	// Set the shadow bucket configuration if it's provided
 	if input.Shadow != nil {
 		upReq.Shadow = input.Shadow
+	}
+
+	// Set the object regions if provided (for location updates).
+	if input.LocationRegions != nil {
+		regions := strings.Join(input.LocationRegions, ",")
+		upReq.ObjectRegions = &regions
 	}
 
 	body, err := json.Marshal(upReq)
@@ -201,6 +244,109 @@ func (c *Client) GetBucketMetadata(ctx context.Context, bucketName string) (*typ
 	}
 
 	return &metadata, nil
+}
+
+func (c *Client) CreateSnapshot(ctx context.Context, sourceBucket, snapshotName string) (string, error) {
+	// Build the header value for snapshot creation.
+	headerValue := "true"
+	if snapshotName != "" {
+		headerValue = fmt.Sprintf("true; name=%s", snapshotName)
+	}
+
+	// Use raw HTTP request to capture the x-tigris-snapshot-version response header.
+	req, err := http.NewRequestWithContext(ctx, http.MethodPut, c.bucketURL(sourceBucket, nil), nil)
+	if err != nil {
+		return "", fmt.Errorf("failed to create snapshot request: %w", err)
+	}
+
+	req.Header.Set(HeaderTigrisSnapshot, headerValue)
+
+	//nolint:contextcheck
+	resp, err := c.doRequestWithRetry(req)
+	if err != nil {
+		return "", fmt.Errorf("failed to create snapshot: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusCreated {
+		return "", fmt.Errorf("snapshot creation failed with code: %d", resp.StatusCode)
+	}
+
+	version := resp.Header.Get(HeaderTigrisSnapshotVersion)
+	if version == "" {
+		return "", fmt.Errorf("snapshot version not returned in response headers")
+	}
+
+	return version, nil
+}
+
+func (c *Client) ListSnapshots(ctx context.Context, sourceBucket string) ([]types.SnapshotInfo, error) {
+	// Use S3 ListBuckets with X-Tigris-Snapshot header set to the bucket name.
+	output, err := c.s3Client.ListBuckets(ctx, &s3.ListBucketsInput{},
+		withHeader(HeaderTigrisSnapshot, sourceBucket),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("failed to list snapshots: %w", err)
+	}
+
+	snapshots := make([]types.SnapshotInfo, 0, len(output.Buckets))
+	for _, b := range output.Buckets {
+		info := types.SnapshotInfo{
+			Name: aws.ToString(b.Name),
+		}
+		if b.CreationDate != nil {
+			info.CreatedAt = b.CreationDate.Format(time.RFC3339)
+		}
+		snapshots = append(snapshots, info)
+	}
+
+	return snapshots, nil
+}
+
+func (c *Client) GetSnapshotByName(ctx context.Context, sourceBucket, name string) (*types.SnapshotInfo, error) {
+	snapshots, err := c.ListSnapshots(ctx, sourceBucket)
+	if err != nil {
+		return nil, err
+	}
+
+	for _, s := range snapshots {
+		if s.Name == name {
+			return &s, nil
+		}
+	}
+
+	return nil, fmt.Errorf("snapshot %q not found for bucket %q", name, sourceBucket)
+}
+
+func (c *Client) HeadBucketWithHeaders(ctx context.Context, bucketName string) (map[string]string, error) {
+	req, err := http.NewRequestWithContext(ctx, http.MethodHead, c.bucketURL(bucketName, nil), nil)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create head request: %w", err)
+	}
+
+	//nolint:contextcheck
+	resp, err := c.doRequestWithRetry(req)
+	if err != nil {
+		return nil, fmt.Errorf("failed to head bucket: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("head bucket failed with code: %d", resp.StatusCode)
+	}
+
+	headers := make(map[string]string)
+	for _, key := range []string{
+		HeaderTigrisEnableSnapshot,
+		HeaderTigrisForkSourceBucket,
+		HeaderTigrisForkSourceSnapshot,
+	} {
+		if v := resp.Header.Get(key); v != "" {
+			headers[key] = v
+		}
+	}
+
+	return headers, nil
 }
 
 func (c *Client) FindBucketWithRetry(ctx context.Context, bucketName string) (bool, error) {

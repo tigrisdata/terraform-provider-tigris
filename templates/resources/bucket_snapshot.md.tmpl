@@ -1,0 +1,29 @@
+---
+page_title: "{{.Name}} {{.Type}} - {{.RenderedProviderName}}"
+subcategory: ""
+description: |-
+{{ .Description | plainmarkdown | trimspace | prefixlines "  " }}
+---
+
+# {{.Name}} ({{.Type}})
+
+{{ .Description | trimspace }}
+
+~> **Note:** The source bucket must have snapshots enabled (`enable_snapshot = true`) before snapshots can be created.
+
+~> **Note:** Snapshots cannot be deleted via the API. Destroying this resource will only remove it from state.
+
+{{ if .HasExample -}}
+## Example Usage
+
+{{codefile "terraform" .ExampleFile}}
+{{- end }}
+{{ .SchemaMarkdown | trimspace }}
+
+{{ if .HasImport -}}
+## Import
+
+Import is supported using the following syntax. The ID format is `{source_bucket}:{snapshot_version}`.
+
+{{codefile "shell" .ImportFile}}
+{{- end }}

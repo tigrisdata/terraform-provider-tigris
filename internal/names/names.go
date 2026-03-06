@@ -12,4 +12,20 @@ const (
 	AttrShadowBucket       = "shadow_bucket"
 	AttrShadowEndpoint     = "shadow_endpoint"
 	AttrShadowWriteThrough = "shadow_write_through"
+
+	// Bucket location and storage tier attributes.
+	AttrLocation           = "location"
+	AttrLocationType       = "type"
+	AttrLocationRegions    = "regions"
+	AttrDefaultStorageTier = "default_storage_tier"
+
+	// Snapshot and fork attributes.
+	AttrEnableSnapshot           = "enable_snapshot"
+	AttrSourceBucket             = "source_bucket"
+	AttrSnapshotName             = "snapshot_name"
+	AttrSnapshotVersion          = "snapshot_version"
+	AttrSnapshotCreatedAt        = "snapshot_created_at"
+	AttrForkSourceBucket         = "fork_source_bucket"
+	AttrForkSourceBucketSnapshot = "fork_source_bucket_snapshot"
+	AttrForkCreatedAt            = "fork_created_at"
 )
