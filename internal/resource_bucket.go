@@ -55,7 +55,7 @@ func resourceTigrisBucket() *schema.Resource {
 							ValidateFunc: validation.StringInSlice(locationTypeValues(), false),
 						},
 						names.AttrLocationRegions: {
-							Type:        schema.TypeList,
+							Type:        schema.TypeSet,
 							Optional:    true,
 							Description: "The region codes. For multi: usa or eur. For single/dual: specific region codes like sjc, iad, ams, etc.",
 							Elem: &schema.Schema{
@@ -102,7 +102,7 @@ func resourceBucketCreate(ctx context.Context, d *schema.ResourceData, meta inte
 		if len(locationList) > 0 {
 			locationMap := locationList[0].(map[string]interface{})
 			locationType := locationMap[names.AttrLocationType].(string)
-			regionsRaw := locationMap[names.AttrLocationRegions].([]interface{})
+			regionsRaw := locationMap[names.AttrLocationRegions].(*schema.Set).List()
 			regions := make([]string, len(regionsRaw))
 			for i, r := range regionsRaw {
 				regions[i] = r.(string)
@@ -209,7 +209,7 @@ func resourceBucketUpdate(ctx context.Context, d *schema.ResourceData, meta inte
 		if len(locationList) > 0 {
 			locationMap := locationList[0].(map[string]interface{})
 			locationType := locationMap[names.AttrLocationType].(string)
-			regionsRaw := locationMap[names.AttrLocationRegions].([]interface{})
+			regionsRaw := locationMap[names.AttrLocationRegions].(*schema.Set).List()
 			regions := make([]string, len(regionsRaw))
 			for i, r := range regionsRaw {
 				regions[i] = r.(string)

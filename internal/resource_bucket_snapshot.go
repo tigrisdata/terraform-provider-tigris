@@ -96,6 +96,19 @@ func resourceBucketSnapshotRead(ctx context.Context, d *schema.ResourceData, met
 		"snapshot_version": snapshotVersion,
 	})
 
+	// Check if the source bucket still exists.
+	exists, err := svc.HeadBucket(ctx, sourceBucket)
+	if err != nil {
+		return diag.FromErr(fmt.Errorf("unable to check source bucket %q: %w", sourceBucket, err))
+	}
+	if !exists {
+		tflog.Warn(ctx, "Source bucket not found, removing snapshot from state", map[string]interface{}{
+			"source_bucket": sourceBucket,
+		})
+		d.SetId("")
+		return nil
+	}
+
 	d.Set(names.AttrSourceBucket, sourceBucket)
 	d.Set(names.AttrSnapshotVersion, snapshotVersion)
 
