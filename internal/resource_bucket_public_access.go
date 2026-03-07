@@ -99,6 +99,9 @@ func resourceBucketPublicAccessRead(ctx context.Context, d *schema.ResourceData,
 	})
 
 	exists, err := svc.HeadBucket(ctx, bucketName)
+	if err != nil {
+		return diag.FromErr(fmt.Errorf("unable to read bucket, %w", err))
+	}
 	if !exists {
 		tflog.Warn(ctx, "Bucket not found, removing from state", map[string]interface{}{
 			"bucket_name": bucketName,
@@ -106,9 +109,6 @@ func resourceBucketPublicAccessRead(ctx context.Context, d *schema.ResourceData,
 
 		d.SetId("")
 		return nil
-	}
-	if err != nil {
-		return diag.FromErr(fmt.Errorf("unable to read bucket, %w", err))
 	}
 
 	d.Set(names.AttrBucket, bucketName)
@@ -186,7 +186,7 @@ func resourceBucketPublicAccessUpdate(ctx context.Context, d *schema.ResourceDat
 		}
 	}
 
-	return resourceBucketRead(ctx, d, meta)
+	return resourceBucketPublicAccessRead(ctx, d, meta)
 }
 
 func resourceBucketPublicAccessDelete(ctx context.Context, d *schema.ResourceData, meta interface{}) diag.Diagnostics {
