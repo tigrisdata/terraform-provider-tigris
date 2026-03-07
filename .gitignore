@@ -37,3 +37,10 @@ pkg/
 # Go workspace file
 go.work
 go.work.sum
+
+# Terraform files
+*.tfstate
+*.tfstate.backup
+.terraformrc-test
+test/**/.terraform/
+test/**/.terraform.lock.hcl

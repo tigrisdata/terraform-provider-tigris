@@ -35,6 +35,8 @@ func Provider() *schema.Provider {
 			"tigris_bucket_public_access":  resourceTigrisBucketPublicAccess(),
 			"tigris_bucket_website_config": resourceTigrisBucketWebsiteConfig(),
 			"tigris_bucket_shadow_config":  resourceTigrisBucketShadowConfig(),
+			"tigris_bucket_snapshot":       resourceTigrisBucketSnapshot(),
+			"tigris_bucket_fork":           resourceTigrisBucketFork(),
 		},
 		ConfigureFunc: providerConfigure,
 	}
