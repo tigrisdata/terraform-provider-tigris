@@ -13,7 +13,7 @@ exclude_files=()
 #   exit 1
 # fi
 
-tfplugindocs generate -rendered-provider-name "Tigris"
+tfplugindocs generate --provider-name tigris -rendered-provider-name "Tigris"
 
 # Remove the changes to files we don't autogenerate
 git checkout HEAD -- "${exclude_files[@]}"
