@@ -3,15 +3,64 @@ on:
   push:
     branches:
       - "release"
+
+permissions:
+  contents: write
+
 jobs:
   release:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GH_BOT_ACCESS_TOKEN }}
+
       - uses: actions/setup-node@v4
         with:
           node-version: 20
-      - name: release
+
+      - name: Run semantic-release
         env:
           GITHUB_TOKEN: ${{ secrets.GH_BOT_ACCESS_TOKEN }}
-        run: npx semantic-release --debug
+        run: npx -p @semantic-release/exec -p semantic-release semantic-release --debug
+
+      - name: Check if a new release was created
+        id: check
+        run: |
+          if [ -f .VERSION ]; then
+            echo "released=true" >> "$GITHUB_OUTPUT"
+            echo "version=$(cat .VERSION)" >> "$GITHUB_OUTPUT"
+          else
+            echo "released=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Fetch Git tags
+        if: steps.check.outputs.released == 'true'
+        run: git fetch --force --tags
+
+      - name: Setup Go
+        if: steps.check.outputs.released == 'true'
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: "go.mod"
+          cache: true
+
+      - name: Import GPG key
+        if: steps.check.outputs.released == 'true'
+        id: import_gpg
+        uses: crazy-max/ghaction-import-gpg@v6
+        with:
+          gpg_private_key: ${{ secrets.GPG_PRIVATE_KEY }}
+          passphrase: ${{ secrets.GPG_PASSPHRASE }}
+
+      - name: Run GoReleaser
+        if: steps.check.outputs.released == 'true'
+        uses: goreleaser/goreleaser-action@v6
+        with:
+          distribution: goreleaser
+          version: latest
+          args: release --clean
+        env:
+          GPG_FINGERPRINT: ${{ steps.import_gpg.outputs.fingerprint }}
+          GITHUB_TOKEN: ${{ secrets.GH_BOT_ACCESS_TOKEN }}
