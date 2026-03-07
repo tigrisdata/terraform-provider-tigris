@@ -333,39 +333,6 @@ func (c *Client) GetSnapshotByName(ctx context.Context, sourceBucket, name strin
 	return nil, fmt.Errorf("snapshot %q not found for bucket %q", name, sourceBucket)
 }
 
-func (c *Client) FindBucketWithRetry(ctx context.Context, bucketName string) (bool, error) {
-	maxRetries := 5
-	backoffDelay := 3 * time.Second
-	maxBackoffDelay := 60 * time.Second
-
-	var exists bool
-	var err error
-
-	for i := 0; i < maxRetries; i++ {
-		exists, err = c.HeadBucket(ctx, bucketName)
-		if err != nil {
-			return false, err
-		}
-
-		// Retry the request if the bucket does not exist
-		if !exists {
-			// Exponential backoff before retrying
-			time.Sleep(backoffDelay)
-			backoffDelay *= 2 // Double the delay for each retry
-			if backoffDelay > maxBackoffDelay {
-				backoffDelay = maxBackoffDelay
-			}
-
-			continue
-		}
-
-		// Break out of the loop if the request was successful
-		break
-	}
-
-	return exists, nil
-}
-
 func (c *Client) doRequestWithRetry(req *http.Request) (*http.Response, error) {
 	maxRetries := 5
 	backoffDelay := 3 * time.Second
