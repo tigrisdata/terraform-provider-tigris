@@ -30,6 +30,13 @@ func newTestClient(t *testing.T, serverURL string) *Client {
 	}
 }
 
+func writeBody(t *testing.T, w http.ResponseWriter, body string) {
+	t.Helper()
+	if _, err := w.Write([]byte(body)); err != nil {
+		t.Errorf("failed to write response body: %v", err)
+	}
+}
+
 func TestDoRequestWithRetry_Success(t *testing.T) {
 	t.Parallel()
 
@@ -37,7 +44,7 @@ func TestDoRequestWithRetry_Success(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		calls.Add(1)
 		w.WriteHeader(http.StatusOK)
-		w.Write([]byte(`OK`))
+		writeBody(t, w, "OK")
 	}))
 	defer srv.Close()
 
@@ -69,11 +76,11 @@ func TestDoRequestWithRetry_RetriesThenSucceeds(t *testing.T) {
 		n := calls.Add(1)
 		if n <= 2 {
 			w.WriteHeader(http.StatusInternalServerError)
-			w.Write([]byte(`error`))
+			writeBody(t, w, "error")
 			return
 		}
 		w.WriteHeader(http.StatusOK)
-		w.Write([]byte(`OK`))
+		writeBody(t, w, "OK")
 	}))
 	defer srv.Close()
 
@@ -104,7 +111,7 @@ func TestDoRequestWithRetry_ExhaustsRetries(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		calls.Add(1)
 		w.WriteHeader(http.StatusBadGateway)
-		w.Write([]byte(`bad gateway`))
+		writeBody(t, w, "bad gateway")
 	}))
 	defer srv.Close()
 
@@ -114,7 +121,7 @@ func TestDoRequestWithRetry_ExhaustsRetries(t *testing.T) {
 		t.Fatalf("failed to create request: %v", err)
 	}
 
-	resp, err := client.doRequestWithRetry(req)
+	resp, err := client.doRequestWithRetry(req) //nolint:bodyclose // resp is nil on exhaustion
 	if err == nil {
 		t.Fatalf("expected error after retry exhaustion, got nil")
 	}
@@ -142,7 +149,7 @@ func TestDoRequestWithRetry_RespectsContextCancellation(t *testing.T) {
 		default:
 		}
 		w.WriteHeader(http.StatusInternalServerError)
-		w.Write([]byte(`error`))
+		writeBody(t, w, "error")
 	}))
 	defer srv.Close()
 
@@ -161,7 +168,7 @@ func TestDoRequestWithRetry_RespectsContextCancellation(t *testing.T) {
 		cancel()
 	}()
 
-	resp, err := client.doRequestWithRetry(req)
+	resp, err := client.doRequestWithRetry(req) //nolint:bodyclose // resp is nil on cancellation
 	if err == nil {
 		t.Fatalf("expected context cancellation error, got nil")
 	}
@@ -181,11 +188,11 @@ func TestDoRequestWithRetry_WithBody(t *testing.T) {
 		n := calls.Add(1)
 		if n <= 1 {
 			w.WriteHeader(http.StatusInternalServerError)
-			w.Write([]byte(`error`))
+			writeBody(t, w, "error")
 			return
 		}
 		w.WriteHeader(http.StatusOK)
-		w.Write([]byte(`OK`))
+		writeBody(t, w, "OK")
 	}))
 	defer srv.Close()
 

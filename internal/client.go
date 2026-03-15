@@ -50,13 +50,13 @@ const (
 )
 
 type Client struct {
-	cfg              aws.Config
-	signer           *v4.Signer
-	credentials      aws.Credentials
-	endpoint         string
-	httpClient       *http.Client
-	s3Client         *s3.Client
-	retryBaseDelay   time.Duration // initial backoff delay; 0 uses default (3s)
+	cfg            aws.Config
+	signer         *v4.Signer
+	credentials    aws.Credentials
+	endpoint       string
+	httpClient     *http.Client
+	s3Client       *s3.Client
+	retryBaseDelay time.Duration // initial backoff delay; 0 uses default (3s)
 }
 
 func NewClient(endpoint, accessKeyID, secretAccessKey string) (*Client, error) {
