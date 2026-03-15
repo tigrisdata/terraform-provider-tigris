@@ -47,10 +47,21 @@ for suite in "${SUITES[@]}"; do
   terraform init -input=false > /dev/null 2>&1 || true
 
   if [ "$suite" = "bucket-delete-protection" ]; then
+    # Helper: best-effort cleanup for protected buckets
+    cleanup_protected() {
+      terraform apply -auto-approve -input=false \
+        -var "test_id=${TEST_ID}" \
+        -var "deletion_protection=false" 2>/dev/null || true
+      terraform destroy -auto-approve -input=false \
+        -var "test_id=${TEST_ID}" \
+        -var "deletion_protection=false" 2>/dev/null || true
+    }
+
     # Special test: verify that destroy is blocked while protection is enabled
     if ! terraform apply -auto-approve -input=false -var "test_id=${TEST_ID}"; then
       FAILED_SUITES+=("$suite")
       echo "==> FAIL: ${suite} (apply with protection enabled)"
+      cleanup_protected
       echo ""
       continue
     fi
@@ -70,6 +81,7 @@ for suite in "${SUITES[@]}"; do
       -var "deletion_protection=false"; then
       FAILED_SUITES+=("$suite")
       echo "==> FAIL: ${suite} (could not disable protection)"
+      cleanup_protected
       echo ""
       continue
     fi
