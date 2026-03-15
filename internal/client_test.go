@@ -158,6 +158,7 @@ func TestDoRequestWithRetry_RespectsContextCancellation(t *testing.T) {
 	client.retryBaseDelay = 5 * time.Second
 
 	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, srv.URL+"/test", nil)
 	if err != nil {
 		t.Fatalf("failed to create request: %v", err)
