@@ -50,12 +50,13 @@ const (
 )
 
 type Client struct {
-	cfg         aws.Config
-	signer      *v4.Signer
-	credentials aws.Credentials
-	endpoint    string
-	httpClient  *http.Client
-	s3Client    *s3.Client
+	cfg              aws.Config
+	signer           *v4.Signer
+	credentials      aws.Credentials
+	endpoint         string
+	httpClient       *http.Client
+	s3Client         *s3.Client
+	retryBaseDelay   time.Duration // initial backoff delay; 0 uses default (3s)
 }
 
 func NewClient(endpoint, accessKeyID, secretAccessKey string) (*Client, error) {
@@ -335,11 +336,13 @@ func (c *Client) GetSnapshotByName(ctx context.Context, sourceBucket, name strin
 
 func (c *Client) doRequestWithRetry(req *http.Request) (*http.Response, error) {
 	maxRetries := 5
-	backoffDelay := 3 * time.Second
-	maxBackoffDelay := 60 * time.Second
+	backoffDelay := c.retryBaseDelay
+	if backoffDelay == 0 {
+		backoffDelay = 3 * time.Second
+	}
+	maxBackoffDelay := 20 * backoffDelay
 
-	var resp *http.Response
-	var err error
+	var lastStatusCode int
 
 	for i := 0; i < maxRetries; i++ {
 		// Clone the request to avoid issues with mutated request objects
@@ -348,17 +351,26 @@ func (c *Client) doRequestWithRetry(req *http.Request) (*http.Response, error) {
 			return nil, fmt.Errorf("failed to clone request: %w", err)
 		}
 
-		resp, err = c.doSignedRequest(clonedReq)
+		resp, err := c.doSignedRequest(clonedReq)
 		if err != nil {
 			return nil, fmt.Errorf("failed to send request: %w", err)
 		}
 
 		// Check if the response status code indicates a server-side error (5xx)
 		if resp.StatusCode >= 500 {
+			lastStatusCode = resp.StatusCode
 			resp.Body.Close()
 
-			// Exponential backoff before retrying
-			time.Sleep(backoffDelay)
+			if i == maxRetries-1 {
+				break
+			}
+
+			// Exponential backoff before retrying, respecting context cancellation
+			select {
+			case <-req.Context().Done():
+				return nil, req.Context().Err()
+			case <-time.After(backoffDelay):
+			}
 			backoffDelay *= 2 // Double the delay for each retry
 			if backoffDelay > maxBackoffDelay {
 				backoffDelay = maxBackoffDelay
@@ -367,11 +379,10 @@ func (c *Client) doRequestWithRetry(req *http.Request) (*http.Response, error) {
 			continue
 		}
 
-		// Break out of the loop if the request was successful
-		break
+		return resp, nil
 	}
 
-	return resp, err
+	return nil, fmt.Errorf("request failed after %d retries with status %d", maxRetries, lastStatusCode)
 }
 
 func (c *Client) doSignedRequest(req *http.Request) (*http.Response, error) {
@@ -432,7 +443,7 @@ func (c *Client) signRequest(req *http.Request) error {
 	req.Header.Set(HeaderAmzContentSha, payloadHash)
 
 	// Sign the request using the signer
-	err := c.signer.SignHTTP(context.TODO(), c.credentials, req, payloadHash, "s3", DefaultRegion, now)
+	err := c.signer.SignHTTP(req.Context(), c.credentials, req, payloadHash, "s3", DefaultRegion, now)
 	if err != nil {
 		return fmt.Errorf("failed to sign request: %w", err)
 	}
