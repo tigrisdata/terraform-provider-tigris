@@ -366,10 +366,12 @@ func (c *Client) doRequestWithRetry(req *http.Request) (*http.Response, error) {
 			}
 
 			// Exponential backoff before retrying, respecting context cancellation
+			timer := time.NewTimer(backoffDelay)
 			select {
 			case <-req.Context().Done():
+				timer.Stop()
 				return nil, req.Context().Err()
-			case <-time.After(backoffDelay):
+			case <-timer.C:
 			}
 			backoffDelay *= 2 // Double the delay for each retry
 			if backoffDelay > maxBackoffDelay {
