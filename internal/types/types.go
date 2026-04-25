@@ -96,7 +96,7 @@ func (b *BucketMetadata) GetBucketCannedACL() BucketCannedACL {
 
 func (b *BucketMetadata) GetPublicObjectsListEnabled() bool {
 	if b.MD == nil || b.MD.PublicObjectsListEnabled == nil {
-		return true
+		return false
 	}
 
 	if *b.MD.PublicObjectsListEnabled == "true" {
