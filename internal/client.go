@@ -154,6 +154,13 @@ func (c *Client) UpdateBucket(ctx context.Context, input *types.BucketUpdateInpu
 		upReq.ObjectRegions = &regions
 	}
 
+	// Set delete protection if provided.
+	if input.DeleteProtection != nil {
+		upReq.Protection = &types.BucketProtection{
+			Protected: *input.DeleteProtection,
+		}
+	}
+
 	body, err := json.Marshal(upReq)
 	if err != nil {
 		return fmt.Errorf("failed to marshal update request: %w", err)
@@ -180,13 +187,12 @@ func (c *Client) UpdateBucket(ctx context.Context, input *types.BucketUpdateInpu
 	}
 	defer resp.Body.Close()
 
-	var upResp types.BucketUpdateResponse
-	err = json.NewDecoder(resp.Body).Decode(&upResp)
-	if err != nil {
-		return fmt.Errorf("request failed with code: %d", resp.StatusCode)
-	}
 	if resp.StatusCode != http.StatusOK {
-		return fmt.Errorf("update failed with error: %s", upResp.ErrorMessage)
+		var errResp types.BucketUpdateResponse
+		if decodeErr := json.NewDecoder(resp.Body).Decode(&errResp); decodeErr == nil && errResp.ErrorMessage != "" {
+			return fmt.Errorf("update failed (status %d): %s", resp.StatusCode, errResp.ErrorMessage)
+		}
+		return fmt.Errorf("update failed with status %d", resp.StatusCode)
 	}
 
 	return nil
@@ -340,7 +346,10 @@ func (c *Client) doRequestWithRetry(req *http.Request) (*http.Response, error) {
 	if backoffDelay == 0 {
 		backoffDelay = 3 * time.Second
 	}
-	maxBackoffDelay := 20 * backoffDelay
+	const maxBackoffDelay = 60 * time.Second
+	if backoffDelay > maxBackoffDelay {
+		backoffDelay = maxBackoffDelay
+	}
 
 	var lastStatusCode int
 
