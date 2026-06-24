@@ -264,6 +264,67 @@ resource "tigris_bucket_fork" "example" {
 }
 ```
 
+### tigris_bucket_lifecycle
+
+The tigris_bucket_lifecycle resource manages the lifecycle configuration of a Tigris bucket. Each rule ages or expires the objects matching an optional key prefix.
+
+Tigris implements a subset of the S3 lifecycle API:
+
+- A rule may have at most one transition. To age objects through more than one tier, use one rule per tier.
+- Rules support a key prefix filter, current-version transitions and expiration. Object tag filters, noncurrent-version actions and incomplete-multipart-upload cleanup are not supported.
+- Transition tiers are `STANDARD_IA`, `GLACIER` and `GLACIER_IR`.
+- Transition and expiration triggers are specified in `days` only (`0` transitions immediately). Date-based triggers are not supported, and importing a bucket whose lifecycle uses one will fail.
+
+This resource supports the following actions:
+
+- Create: Sets the bucket's lifecycle configuration.
+- Read: Retrieves the current lifecycle rules.
+- Update: Replaces the lifecycle configuration.
+- Delete: Removes the lifecycle configuration.
+- Import: Imports an existing configuration using the bucket name.
+
+#### Configuration
+
+- bucket: (Required) The name of the Tigris bucket.
+- rule: (Required) One or more lifecycle rules. Each rule supports:
+  - id: (Required) Unique identifier for the rule, up to 255 characters.
+  - status: (Optional) `Enabled` or `Disabled`. Defaults to `Enabled`.
+  - prefix: (Optional) Object key prefix the rule applies to. An empty prefix matches the whole bucket.
+  - transition: (Optional) A single transition block with a `storage_tier` and `days` (use 0 to transition immediately).
+  - expiration: (Optional) An expiration block with `days`. At least one of transition or expiration is required.
+
+```hcl
+resource "tigris_bucket_lifecycle" "example" {
+  bucket = tigris_bucket.example_bucket.bucket
+
+  rule {
+    id     = "logs-to-infrequent-access"
+    prefix = "logs/"
+    status = "Enabled"
+
+    transition {
+      days         = 30
+      storage_tier = "STANDARD_IA"
+    }
+  }
+
+  rule {
+    id     = "logs-to-archive-then-expire"
+    prefix = "logs/"
+    status = "Enabled"
+
+    transition {
+      days         = 90
+      storage_tier = "GLACIER_IR"
+    }
+
+    expiration {
+      days = 365
+    }
+  }
+}
+```
+
 ## Developing
 
 ### Local Development

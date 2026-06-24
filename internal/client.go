@@ -20,6 +20,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/credentials"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 	s3types "github.com/aws/aws-sdk-go-v2/service/s3/types"
+	smithy "github.com/aws/smithy-go"
 	shttp "github.com/aws/smithy-go/transport/http"
 	"github.com/tigrisdata/terraform-provider-tigris/internal/types"
 )
@@ -486,4 +487,61 @@ func withHeader(key, value string) func(*s3.Options) {
 	return func(options *s3.Options) {
 		options.APIOptions = append(options.APIOptions, shttp.AddHeaderValue(key, value))
 	}
+}
+
+// PutBucketLifecycle replaces the bucket's lifecycle configuration with the given rules.
+func (c *Client) PutBucketLifecycle(ctx context.Context, bucket string, rules []s3types.LifecycleRule) error {
+	_, err := c.s3Client.PutBucketLifecycleConfiguration(ctx, &s3.PutBucketLifecycleConfigurationInput{
+		Bucket: aws.String(bucket),
+		LifecycleConfiguration: &s3types.BucketLifecycleConfiguration{
+			Rules: rules,
+		},
+	})
+
+	return err
+}
+
+// GetBucketLifecycle returns the bucket's lifecycle rules. A bucket with no
+// lifecycle configuration is reported as no rules (nil), not an error: Tigris
+// returns an empty configuration with HTTP 200 rather than the
+// NoSuchLifecycleConfiguration error that AWS S3 returns, so both are handled.
+func (c *Client) GetBucketLifecycle(ctx context.Context, bucket string) ([]s3types.LifecycleRule, error) {
+	out, err := c.s3Client.GetBucketLifecycleConfiguration(ctx, &s3.GetBucketLifecycleConfigurationInput{
+		Bucket: aws.String(bucket),
+	})
+	if err != nil {
+		if isErrorCode(err, "NoSuchLifecycleConfiguration") {
+			return nil, nil
+		}
+
+		return nil, err
+	}
+
+	return out.Rules, nil
+}
+
+// DeleteBucketLifecycle removes the bucket's lifecycle configuration. It is
+// idempotent: a missing configuration or a missing bucket is treated as already
+// deleted.
+func (c *Client) DeleteBucketLifecycle(ctx context.Context, bucket string) error {
+	_, err := c.s3Client.DeleteBucketLifecycle(ctx, &s3.DeleteBucketLifecycleInput{
+		Bucket: aws.String(bucket),
+	})
+	if err != nil && (isErrorCode(err, "NoSuchLifecycleConfiguration") || isErrorCode(err, "NoSuchBucket")) {
+		return nil
+	}
+
+	return err
+}
+
+// isErrorCode reports whether err is an S3 API error with the given code. The
+// aws-sdk-go-v2 client surfaces S3 errors as smithy API errors rather than typed
+// structs, so the code is matched rather than the concrete type.
+func isErrorCode(err error, code string) bool {
+	var apiErr smithy.APIError
+	if errors.As(err, &apiErr) {
+		return apiErr.ErrorCode() == code
+	}
+
+	return false
 }

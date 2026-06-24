@@ -1,0 +1,37 @@
+---
+page_title: "{{.Name}} {{.Type}} - {{.RenderedProviderName}}"
+subcategory: ""
+description: |-
+{{ .Description | plainmarkdown | trimspace | prefixlines "  " }}
+---
+
+# {{.Name}} ({{.Type}})
+
+{{ .Description | trimspace }}
+
+{{ if .HasExample -}}
+## Example Usage
+
+{{codefile "terraform" .ExampleFile}}
+{{- end }}
+
+## Tigris Support and Limitations
+
+Tigris implements a subset of the S3 lifecycle API. This resource is scoped to what Tigris accepts:
+
+- A rule has at most one transition. To age objects through more than one tier, use one rule per tier.
+- Rules support current-version transitions and expiration only. Noncurrent-version actions and incomplete-multipart-upload cleanup are not supported.
+- Rules filter by key prefix only. Object tag filters are not supported.
+- Transition tiers are `STANDARD_IA`, `GLACIER`, and `GLACIER_IR`.
+- Transition and expiration triggers are specified in `days` only (`0` transitions immediately). Date-based triggers are not supported, and importing a bucket whose lifecycle uses one will fail.
+- Each rule must set at least one of `transition` or `expiration`, and rule ids must be unique within the configuration.
+
+{{ .SchemaMarkdown | trimspace }}
+
+{{ if .HasImport -}}
+## Import
+
+Import is supported using the following syntax:
+
+{{codefile "shell" .ImportFile}}
+{{- end }}
