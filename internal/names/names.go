@@ -28,4 +28,14 @@ const (
 	AttrForkSourceBucket         = "fork_source_bucket"
 	AttrForkSourceBucketSnapshot = "fork_source_bucket_snapshot"
 	AttrForkCreatedAt            = "fork_created_at"
+
+	// Lifecycle rule attributes.
+	AttrRule        = "rule"
+	AttrRuleID      = "id"
+	AttrStatus      = "status"
+	AttrPrefix      = "prefix"
+	AttrTransition  = "transition"
+	AttrExpiration  = "expiration"
+	AttrDays        = "days"
+	AttrStorageTier = "storage_tier"
 )

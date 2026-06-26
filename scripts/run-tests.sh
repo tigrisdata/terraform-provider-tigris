@@ -12,8 +12,23 @@ SUITES=(
   bucket-fork
   bucket-update
   bucket-public-access
+  bucket-lifecycle
+)
+
+# Suites that must be idempotent: a second plan after apply has to report no
+# changes. This catches perpetual diffs (for example, lifecycle rule ordering).
+IDEMPOTENT_SUITES=(
+  bucket-lifecycle
 )
 FAILED_SUITES=()
+
+is_idempotent_suite() {
+  local s
+  for s in "${IDEMPOTENT_SUITES[@]}"; do
+    [ "$s" = "$1" ] && return 0
+  done
+  return 1
+}
 
 # Create a temporary .terraformrc with dev_overrides
 export TF_CLI_CONFIG_FILE="${REPO_ROOT}/.terraformrc-test"
@@ -48,6 +63,16 @@ for suite in "${SUITES[@]}"; do
   # Apply
   if terraform apply -auto-approve -input=false -var "test_id=${TEST_ID}"; then
     echo "==> PASS: ${suite}"
+
+    # For idempotent suites, a second plan must report no changes.
+    if is_idempotent_suite "$suite"; then
+      if terraform plan -detailed-exitcode -input=false -var "test_id=${TEST_ID}" > /dev/null 2>&1; then
+        echo "==> PASS: ${suite} (idempotent)"
+      else
+        FAILED_SUITES+=("$suite")
+        echo "==> FAIL: ${suite} (second plan reported changes)"
+      fi
+    fi
   else
     FAILED_SUITES+=("$suite")
     echo "==> FAIL: ${suite}"
