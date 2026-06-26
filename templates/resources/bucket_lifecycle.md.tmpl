@@ -25,6 +25,7 @@ Tigris implements a subset of the S3 lifecycle API. This resource is scoped to w
 - Transition tiers are `STANDARD_IA`, `GLACIER`, and `GLACIER_IR`.
 - Transition and expiration triggers are specified in `days` only (`0` transitions immediately). Date-based triggers are not supported, and importing a bucket whose lifecycle uses one will fail.
 - Each rule must set at least one of `transition` or `expiration`, and rule ids must be unique within the configuration.
+- A bucket can have at most 10 rules, and each rule id can be up to 36 characters.
 
 {{ .SchemaMarkdown | trimspace }}
 

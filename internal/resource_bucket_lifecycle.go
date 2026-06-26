@@ -45,14 +45,15 @@ func resourceTigrisBucketLifecycle() *schema.Resource {
 				Type:        schema.TypeSet,
 				Required:    true,
 				MinItems:    1,
-				Description: "A lifecycle rule. Rules are unordered; each is identified by its id.",
+				MaxItems:    10,
+				Description: "A lifecycle rule. Rules are unordered; each is identified by its id. A bucket can have at most 10 rules.",
 				Elem: &schema.Resource{
 					Schema: map[string]*schema.Schema{
 						names.AttrRuleID: {
 							Type:         schema.TypeString,
 							Required:     true,
-							Description:  "Unique identifier for the rule. Up to 255 characters.",
-							ValidateFunc: validation.StringLenBetween(1, 255),
+							Description:  "Unique identifier for the rule. Up to 36 characters.",
+							ValidateFunc: validation.StringLenBetween(1, 36),
 						},
 						names.AttrStatus: {
 							Type:         schema.TypeString,

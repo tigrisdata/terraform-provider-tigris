@@ -274,6 +274,7 @@ Tigris implements a subset of the S3 lifecycle API:
 - Rules support a key prefix filter, current-version transitions and expiration. Object tag filters, noncurrent-version actions and incomplete-multipart-upload cleanup are not supported.
 - Transition tiers are `STANDARD_IA`, `GLACIER` and `GLACIER_IR`.
 - Transition and expiration triggers are specified in `days` only (`0` transitions immediately). Date-based triggers are not supported, and importing a bucket whose lifecycle uses one will fail.
+- A bucket can have at most 10 rules, and each rule id can be up to 36 characters.
 
 This resource supports the following actions:
 
@@ -287,7 +288,7 @@ This resource supports the following actions:
 
 - bucket: (Required) The name of the Tigris bucket.
 - rule: (Required) One or more lifecycle rules. Each rule supports:
-  - id: (Required) Unique identifier for the rule, up to 255 characters.
+  - id: (Required) Unique identifier for the rule, up to 36 characters.
   - status: (Optional) `Enabled` or `Disabled`. Defaults to `Enabled`.
   - prefix: (Optional) Object key prefix the rule applies to. An empty prefix matches the whole bucket.
   - transition: (Optional) A single transition block with a `storage_tier` and `days` (use 0 to transition immediately).
